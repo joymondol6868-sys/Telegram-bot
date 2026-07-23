@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: telegram-bot
+    runtime: node
+    region: singapore  # Asia-closest region for faster response
+    plan: free
+    buildCommand: npm install -g pnpm@10 && pnpm install --frozen-lockfile && pnpm --filter @workspace/api-server run build
+    startCommand: node --enable-source-maps artifacts/api-server/dist/index.mjs
+    healthCheckPath: /api/healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false          # Set manually in Render dashboard
+      - key: DATABASE_URL
+        sync: false          # Supabase connection string
+      - key: WEBHOOK_URL
+        sync: false          # e.g. https://telegram-bot.onrender.com
+      - key: BOT_USERNAME
+        sync: false          # e.g. Cineflixstorage_bot (optional, auto-detected)
+      - key: ADULT_BOT_LINK
+        sync: false
+      - key: MOVIE_BOT_LINK
+        sync: false
+      - key: ADS_URL
+        sync: false
