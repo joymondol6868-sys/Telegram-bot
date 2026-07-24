@@ -1,4 +1,4 @@
-import { Bot, InlineKeyboard, session, webhookCallback } from "grammy";
+import { Bot, InlineKeyboard, Keyboard, session, webhookCallback } from "grammy";
 import type { Context, SessionFlavor } from "grammy";
 import type { Express } from "express";
 import { logger } from "../lib/logger.js";
@@ -143,17 +143,20 @@ const LINE = "─────────────────────";
 
 // ─── Main menu inline keyboard — colored buttons inside bot message ───────────
 
-function mainMenu(lang: Lang): InlineKeyboard {
-  return new InlineKeyboard()
-    .add({ text: tr_(lang, "watchAdsEarnBtn"), callback_data: "go_earn",      style: "success" }).row()
-    .add({ text: tr_(lang, "walletBtn"),       callback_data: "go_wallet",    style: "primary" })
-    .add({ text: tr_(lang, "dashboardBtn"),    callback_data: "go_dashboard", style: "primary" }).row()
-    .add({ text: tr_(lang, "rewardsBtn"),      callback_data: "go_tasks",     style: "danger"  })
-    .add({ text: tr_(lang, "referralsBtn"),    callback_data: "go_referral",  style: "success" }).row()
-    .add({ text: tr_(lang, "videoZoneBtn"),    callback_data: "go_video",     style: "danger"  })
-    .add({ text: tr_(lang, "channelBtn"),      callback_data: "go_channel",   style: "success" }).row()
-    .add({ text: tr_(lang, "settingsBtn"),     callback_data: "go_settings",  style: "primary" })
-    .add({ text: tr_(lang, "supportBtn"),      callback_data: "go_support",   style: "primary" });
+/** Main Menu — persistent Reply Keyboard (bottom menu), not inline. */
+function mainMenu(lang: Lang): Keyboard {
+  return new Keyboard()
+    .add({ text: tr_(lang, "watchAdsEarnBtn"), style: "success" }).row()
+    .add({ text: tr_(lang, "walletBtn"),       style: "primary" })
+    .add({ text: tr_(lang, "dashboardBtn"),    style: "primary" }).row()
+    .add({ text: tr_(lang, "rewardsBtn"),      style: "danger"  })
+    .add({ text: tr_(lang, "referralsBtn"),    style: "success" }).row()
+    .add({ text: tr_(lang, "videoZoneBtn"),    style: "danger"  })
+    .add({ text: tr_(lang, "channelBtn"),      style: "success" }).row()
+    .add({ text: tr_(lang, "settingsBtn"),     style: "primary" })
+    .add({ text: tr_(lang, "supportBtn"),      style: "primary" })
+    .resized()
+    .persistent();
 }
 
 // ─── Rank helpers ─────────────────────────────────────────────────────────────
@@ -235,20 +238,30 @@ function cancelMenu(lang: Lang, backCallback = "go_dashboard"): InlineKeyboard {
 
 // ─── Inline keyboard for language select ─────────────────────────────────────
 
-function langKeyboard(): InlineKeyboard {
-  return new InlineKeyboard()
-    .add({ text: "🇬🇧 English",   callback_data: "lang:en", style: "primary" })
-    .add({ text: "🇧🇩 বাংলা",     callback_data: "lang:bn", style: "success" })
-    .add({ text: "🇮🇳 हिन्दी",   callback_data: "lang:hi", style: "danger"  }).row()
-    .add({ text: "🇸🇦 العربية",   callback_data: "lang:ar", style: "primary" })
-    .add({ text: "🇷🇺 Русский",   callback_data: "lang:ru", style: "success" })
-    .add({ text: "🇹🇷 Türkçe",    callback_data: "lang:tr", style: "danger"  }).row()
-    .add({ text: "🇵🇰 اردو",      callback_data: "lang:ur", style: "primary" })
-    .add({ text: "🇮🇳 ਪੰਜਾਬੀ",   callback_data: "lang:pa", style: "success" })
-    .add({ text: "🇮🇩 Indonesia", callback_data: "lang:id", style: "danger"  }).row()
-    .add({ text: "🇫🇷 Français",  callback_data: "lang:fr", style: "primary" })
-    .add({ text: "🇪🇸 Español",   callback_data: "lang:es", style: "success" })
-    .add({ text: "🇧🇷 Português", callback_data: "lang:pt", style: "danger"  });
+// Language button label -> language code. Shared between the Keyboard builder
+// below and the message:text handler that reads the pressed label back.
+const LANG_BUTTONS: Array<{ text: string; code: Lang; style: "primary" | "success" | "danger" }> = [
+  { text: "🇬🇧 English",   code: "en", style: "primary" },
+  { text: "🇧🇩 বাংলা",     code: "bn", style: "success" },
+  { text: "🇮🇳 हिन्दी",   code: "hi", style: "danger"  },
+  { text: "🇸🇦 العربية",   code: "ar", style: "primary" },
+  { text: "🇷🇺 Русский",   code: "ru", style: "success" },
+  { text: "🇹🇷 Türkçe",    code: "tr", style: "danger"  },
+  { text: "🇵🇰 اردو",      code: "ur", style: "primary" },
+  { text: "🇮🇳 ਪੰਜਾਬੀ",   code: "pa", style: "success" },
+  { text: "🇮🇩 Indonesia", code: "id", style: "danger"  },
+  { text: "🇫🇷 Français",  code: "fr", style: "primary" },
+  { text: "🇪🇸 Español",   code: "es", style: "success" },
+  { text: "🇧🇷 Português", code: "pt", style: "danger"  },
+];
+
+function langKeyboard(): Keyboard {
+  const kbd = new Keyboard();
+  LANG_BUTTONS.forEach((b, i) => {
+    kbd.add({ text: b.text, style: b.style });
+    if (i % 3 === 2) kbd.row();
+  });
+  return kbd.resized();
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -529,12 +542,13 @@ export async function startBot(expressApp?: Express) {
       days,
     }) + walletLine + rankLine;
 
-    const kbd = new InlineKeyboard()
-      .add({ text: tr_(lang, "changeNameBtn"), callback_data: "dash_name",     style: "primary" })
-      .add({ text: tr_(lang, "changeLangBtn"), callback_data: "dash_lang",     style: "success" }).row()
-      .add({ text: tr_(lang, "setWalletBtn"),  callback_data: "dash_wallet",   style: "primary" }).row()
-      .add({ text: tr_(lang, "withdrawalBtn"), callback_data: "dash_withdraw", style: "success" }).row()
-      .add({ text: "🏠 " + tr_(lang, "mainMenuBtn").replace(/^🏠\s*/, ""), callback_data: "go_main", style: "danger" });
+    const kbd = new Keyboard()
+      .add({ text: tr_(lang, "changeNameBtn"), style: "primary" })
+      .add({ text: tr_(lang, "changeLangBtn"), style: "success" }).row()
+      .add({ text: tr_(lang, "setWalletBtn"),  style: "primary" }).row()
+      .add({ text: tr_(lang, "withdrawalBtn"), style: "success" }).row()
+      .add({ text: tr_(lang, "mainMenuBtn"), style: "danger" })
+      .resized();
     await showPanel(ctx, text, { reply_markup: kbd });
   }
 
@@ -566,10 +580,11 @@ export async function startBot(expressApp?: Express) {
   }
 
   async function handleSettingsPanel(ctx: BotCtx, lang: Lang) {
-    const kbd = new InlineKeyboard()
-      .add({ text: tr_(lang, "changeNameBtn"), callback_data: "dash_name", style: "primary" })
-      .add({ text: tr_(lang, "changeLangBtn"), callback_data: "dash_lang", style: "success" }).row()
-      .add({ text: "🏠 " + tr_(lang, "mainMenuBtn").replace(/^🏠\s*/, ""), callback_data: "go_main", style: "danger" });
+    const kbd = new Keyboard()
+      .add({ text: tr_(lang, "changeNameBtn"), style: "primary" })
+      .add({ text: tr_(lang, "changeLangBtn"), style: "success" }).row()
+      .add({ text: tr_(lang, "mainMenuBtn"), style: "danger" })
+      .resized();
     await showPanel(ctx, `⚙️ <b>SETTINGS</b>\n<code>${SEP}</code>\n🔧 Manage your account:`, { reply_markup: kbd });
   }
 
@@ -588,14 +603,15 @@ export async function startBot(expressApp?: Express) {
     return { bonus_limit, total_limit, watched, remaining, todayEarned, balance };
   }
 
-  function buildEarnKeyboard(lang: Lang, remaining: number): InlineKeyboard {
-    const kbd = new InlineKeyboard();
+  function buildEarnKeyboard(lang: Lang, remaining: number): Keyboard {
+    const kbd = new Keyboard();
     if (remaining > 0) {
-      kbd.add({ text: tr_(lang, "watchAdNowBtn"), callback_data: "watch_ad", style: "success" }).row();
+      kbd.add({ text: tr_(lang, "watchAdNowBtn"), style: "success" }).row();
     }
     kbd
-      .add({ text: tr_(lang, "upgradeLimitBtn"), callback_data: "go_referral", style: "primary" }).row()
-      .add({ text: "🏠 " + tr_(lang, "mainMenuBtn").replace(/^🏠\s*/, ""), callback_data: "go_main", style: "danger" });
+      .add({ text: tr_(lang, "upgradeLimitBtn"), style: "primary" }).row()
+      .add({ text: tr_(lang, "backToMainBtn"), style: "danger" })
+      .resized();
     return kbd;
   }
 
@@ -985,12 +1001,60 @@ export async function startBot(expressApp?: Express) {
       return;
     }
 
+    // ── ✏️ Change Name (Settings / Dashboard reply keyboard button) ─────────
+    // Wallet/withdraw/name-change stay on an Inline "Cancel" keyboard once
+    // the bot is waiting for typed input — only the menu button itself is
+    // Reply Keyboard.
+
+    if (text === tr_(lang, "changeNameBtn")) {
+      ctx.session.state = "await_name_update";
+      await showPanel(ctx, tr_(lang, "enterNameMsg"), { reply_markup: cancelMenu(lang) });
+      return;
+    }
+
+    // ── 🌐 Change Language (Settings / Dashboard reply keyboard button) ─────
+
+    if (text === tr_(lang, "changeLangBtn")) {
+      clearState(ctx);
+      await showPanel(ctx, tr_(lang, "selectLang"), { reply_markup: langKeyboard() });
+      return;
+    }
+
+    // ── 💳 Set Wallet (Dashboard reply keyboard button) ──────────────────────
+
+    if (text === tr_(lang, "setWalletBtn")) {
+      await handleWalletSetPrompt(ctx, lang);
+      return;
+    }
+
+    // ── 💸 Withdrawal (Dashboard reply keyboard button) ──────────────────────
+
+    if (text === tr_(lang, "withdrawalBtn")) {
+      dbUser = (await getUserByTelegramId(tgId))!;
+      await handleWithdrawalPrompt(ctx, lang, dbUser);
+      return;
+    }
+
+    // ── 🌐 Language picked (reply keyboard button on the language screen) ───
+
+    {
+      const picked = LANG_BUTTONS.find(b => b.text === text);
+      if (picked) {
+        await setUserLanguage(tgId, picked.code);
+        clearState(ctx);
+        const freshUser = (await getUserByTelegramId(tgId))!;
+        await showMainMenuPanel(ctx, picked.code, freshUser);
+        return;
+      }
+    }
+
     // ── 💬 Support ────────────────────────────────────────────────────────────
 
     if (text === tr_(lang, "supportBtn")) {
       clearState(ctx);
-      const kbd = new InlineKeyboard()
-        .add({ text: "🏠 " + tr_(lang, "mainMenuBtn").replace(/^🏠\s*/, ""), callback_data: "go_main", style: "danger" });
+      const kbd = new Keyboard()
+        .add({ text: tr_(lang, "mainMenuBtn"), style: "danger" })
+        .resized();
       await showPanel(ctx, tr_(lang, "supportMsg"), { reply_markup: kbd });
       return;
     }
