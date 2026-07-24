@@ -6,9 +6,10 @@ import {
   getOrCreateUser, getUserByTelegramId, setUserLanguage,
   getTodayAds, startAdWatch, completeAdWatch,
   getOrCreateDailyTask, markTaskShare, claimDailyBonus,
-  getReferralStats, createWithdrawal, getWalletStats, getUserWithdrawalHistory,
-  getActiveChannels, recordChannelJoin, getChannelJoin,
-  getWarningCount,
+  getReferralStats, getReferralBonusLimit, createWithdrawal, getWalletStats, getUserWithdrawalHistory,
+  getActiveChannels, getRequiredChannels, recordChannelJoin, getChannelJoin,
+  completeReferralIfPending,
+  getWarningCount, getSuspension, issueAdAbandonStrike,
   getNumSetting, seedSettings, saveUserPanelMsg,
   updateUserWallet, updateUserName,
   getTopEarners, getBotStats,
@@ -18,6 +19,7 @@ import { tr_, LANGUAGES, bar, escHtml, type Lang } from "./languages.js";
 // ─── Session ──────────────────────────────────────────────────────────────────
 
 interface SessionData {
+  pendingForceJoinAction?: string; // which gated action to resume after force_join_verify passes
   state?:
     | "selecting_wallet_method"    // on wallet select keyboard (profile flow)
     | "selecting_withdraw_method"  // on withdraw method keyboard
@@ -432,6 +434,53 @@ export async function startBot(expressApp?: Express) {
     return unjoined;
   }
 
+  /**
+   * Force-join gate for money-moving actions (Watch Ad, Daily Bonus,
+   * Withdrawal). Unlike getUnjoinedChannels above (which skips channels
+   * already reward-paid for the one-time channel-join task), this ALWAYS
+   * live-checks required channels — this is an access gate, not a
+   * one-time task, so a past reward never grandfathers someone back in
+   * after they've left.
+   *
+   * On first successful pass for a referred user, also flips their
+   * pending referral to "success" and pays the referrer — see
+   * completeReferralIfPending(). Safe to call every time; no-op if
+   * there's nothing pending.
+   *
+   * Returns true and calls `onPass()` if the gate is clear. Returns false
+   * and shows the Join/Verify panel instead if channels are still missing.
+   */
+  async function requireForceJoin(
+    ctx: BotCtx, lang: Lang, dbUser: NonNullable<FullUser>, actionTag: string, onPass: () => Promise<void>,
+  ): Promise<boolean> {
+    const required = await getRequiredChannels();
+    if (required.length === 0) { await onPass(); return true; }
+
+    const missing: typeof required = [];
+    for (const ch of required) {
+      if (!await checkChannelMembershipByTgId(ch.telegramId, ctx.from!.id)) missing.push(ch);
+    }
+
+    if (missing.length === 0) {
+      await completeReferralIfPending(dbUser.id).catch(() => null);
+      await onPass();
+      return true;
+    }
+
+    ctx.session.pendingForceJoinAction = actionTag;
+    const kbd = new InlineKeyboard();
+    missing.forEach((ch) => {
+      kbd.url(`📢 ${ch.name}`, ch.url).row();
+    });
+    kbd.add({ text: "✅ I've Joined — Verify", callback_data: "force_join_verify", style: "success" });
+    await showPanel(
+      ctx,
+      `🔒 <b>Join Required</b>\n<code>${SEP}</code>\nJoin the channel(s) below to unlock Ads / Withdrawal / Daily Bonus, then tap Verify:`,
+      { reply_markup: kbd },
+    );
+    return false;
+  }
+
   // ── Panel helpers (need bot session in scope) ────────────────────────────
 
   function walletOverviewKeyboard(lang: Lang): InlineKeyboard {
@@ -440,6 +489,7 @@ export async function startBot(expressApp?: Express) {
       .add({ text: tr_(lang, "setPayoutWalletBtn"), callback_data: "wallet_set", style: "primary" }).row()
       .add({ text: tr_(lang, "payoutHistoryBtn"), callback_data: "wallet_history", style: "primary" })
       .add({ text: tr_(lang, "paymentProofsBtn"), callback_data: "wallet_proofs", style: "success" }).row()
+      .add({ text: "🔄 Refresh", callback_data: "refresh_wallet", style: "primary" }).row()
       .add({ text: tr_(lang, "walletMainBtn"), callback_data: "go_main" });
   }
 
@@ -474,11 +524,13 @@ export async function startBot(expressApp?: Express) {
       }), { reply_markup: walletOverviewKeyboard(lang) });
       return;
     }
-    clearState(ctx);
-    await editPanel(ctx, tr_(lang, "withdrawMsg", {
-      balance: balance.toFixed(2),
-      minWd: minWd.toFixed(2),
-    }), { reply_markup: withdrawMethodInlineMenu(lang) });
+    await requireForceJoin(ctx, lang, dbUser, "withdraw", async () => {
+      clearState(ctx);
+      await editPanel(ctx, tr_(lang, "withdrawMsg", {
+        balance: balance.toFixed(2),
+        minWd: minWd.toFixed(2),
+      }), { reply_markup: withdrawMethodInlineMenu(lang) });
+    });
   }
 
   async function handleWalletHistory(ctx: BotCtx, lang: Lang, dbUser: NonNullable<FullUser>, proofsOnly = false) {
@@ -594,7 +646,7 @@ export async function startBot(expressApp?: Express) {
       getReferralStats(dbUser.id),
       getTodayAds(dbUser.id),
     ]);
-    const bonus_limit = refs.count;
+    const bonus_limit = getReferralBonusLimit(refs.count);
     const total_limit = BASE_LIMIT + bonus_limit;
     const watched     = todayAds?.count ?? 0;
     const remaining   = Math.max(total_limit - watched, 0);
@@ -603,10 +655,10 @@ export async function startBot(expressApp?: Express) {
     return { bonus_limit, total_limit, watched, remaining, todayEarned, balance };
   }
 
-  function buildEarnKeyboard(lang: Lang, remaining: number): Keyboard {
+  function buildEarnKeyboard(lang: Lang, remaining: number, watched: number, total_limit: number): Keyboard {
     const kbd = new Keyboard();
     if (remaining > 0) {
-      kbd.add({ text: tr_(lang, "watchAdNowBtn"), style: "success" }).row();
+      kbd.add({ text: `${tr_(lang, "watchAdNowBtn")} (${watched}/${total_limit})`, style: "success" }).row();
     }
     kbd
       .add({ text: tr_(lang, "upgradeLimitBtn"), style: "primary" }).row()
@@ -620,7 +672,7 @@ export async function startBot(expressApp?: Express) {
     const msg = d.remaining > 0
       ? tr_(lang, "earnMsg",  { bonus_limit: d.bonus_limit, total_limit: d.total_limit, remaining: d.remaining })
       : tr_(lang, "earnDone", { balance: d.balance, max: d.total_limit });
-    await showPanel(ctx, msg, { reply_markup: buildEarnKeyboard(lang, d.remaining) });
+    await showPanel(ctx, msg, { reply_markup: buildEarnKeyboard(lang, d.remaining, d.watched, d.total_limit) });
   }
 
   async function handleEarnPanelEdit(ctx: BotCtx, lang: Lang, dbUser: NonNullable<FullUser>) {
@@ -692,6 +744,7 @@ export async function startBot(expressApp?: Express) {
   async function handleTaskPanel(ctx: BotCtx, lang: Lang, dbUser: NonNullable<FullUser>) {
     const tgUserId = ctx.from?.id ?? 0;
     const { msg, kbd } = await buildTaskPanelData(dbUser, lang, tgUserId);
+    kbd.row().add({ text: "🔄 Refresh", callback_data: "refresh_tasks", style: "primary" });
     kbd.row().add({ text: "🏠 " + tr_(lang, "mainMenuBtn").replace(/^🏠\s*/, ""), callback_data: "go_main", style: "danger" });
     await showPanel(ctx, msg, { reply_markup: kbd });
   }
@@ -699,6 +752,7 @@ export async function startBot(expressApp?: Express) {
   async function handleTaskPanelEdit(ctx: BotCtx, lang: Lang, dbUser: NonNullable<FullUser>) {
     const tgUserId = ctx.from?.id ?? 0;
     const { msg, kbd } = await buildTaskPanelData(dbUser, lang, tgUserId);
+    kbd.row().add({ text: "🔄 Refresh", callback_data: "refresh_tasks", style: "primary" });
     kbd.row().add({ text: "🏠 " + tr_(lang, "mainMenuBtn").replace(/^🏠\s*/, ""), callback_data: "go_main", style: "danger" });
     await ctx.editMessageText(msg, { ...HTML, reply_markup: kbd }).catch(() => {});
   }
@@ -726,7 +780,7 @@ export async function startBot(expressApp?: Express) {
   bot.command("start", async (ctx) => {
     const from    = ctx.from!;
     const refCode = ctx.match?.startsWith("ref_") ? ctx.match.slice(4) : undefined;
-    const dbUser  = await getOrCreateUser(
+    const { user: dbUser, isNew } = await getOrCreateUser(
       String(from.id), from.first_name, from.last_name ?? null, from.username ?? null, refCode,
     );
     const lang   = (dbUser.language as Lang) ?? "en";
@@ -740,6 +794,13 @@ export async function startBot(expressApp?: Express) {
       ctx.session.panelMsgId = undefined;
     }
     await ctx.deleteMessage().catch(() => {}); // remove the user's /start command
+
+    if (!isNew) {
+      // Returning user — straight to Main Menu in their saved language.
+      // Language can only be changed afterwards via Settings.
+      await showMainMenuPanel(ctx, lang, dbUser);
+      return;
+    }
 
     const sent = await ctx.api.sendMessage(chatId, tr_(lang, "welcome", { name: from.first_name }), {
       ...HTML, reply_markup: langKeyboard(),
@@ -776,6 +837,13 @@ export async function startBot(expressApp?: Express) {
 
     if (dbUser.isBanned) {
       await showPanel(ctx, tr_(lang, "banned"), { reply_markup: mainMenu(lang) });
+      return;
+    }
+
+    const suspendedUntil = await getSuspension(dbUser.id);
+    if (suspendedUntil) {
+      const mins = Math.max(1, Math.ceil((suspendedUntil.getTime() - Date.now()) / 60000));
+      await showPanel(ctx, `⏳ <b>Temporarily Suspended</b>\n<code>${SEP}</code>\nToo many abandoned ads. Try again in ~${mins} min.`, { reply_markup: mainMenu(lang) });
       return;
     }
 
@@ -1070,32 +1138,34 @@ export async function startBot(expressApp?: Express) {
 
     // ── 🎬 Watch Ad Now (earn sub-menu reply keyboard button) ────────────────
 
-    if (text === tr_(lang, "watchAdNowBtn")) {
+    if (text.startsWith(tr_(lang, "watchAdNowBtn"))) {
       clearState(ctx);
-      const channels = await getActiveChannels();
-      if (channels.length > 0) {
-        const unjoined = await getUnjoinedChannels(dbUser.id, ctx.from.id, channels);
-        if (unjoined.length > 0) {
-          const channelList = unjoined.map(c => `  • <a href="${c.url}">${c.name}</a>`).join("\n");
-          const kbd = new InlineKeyboard();
-          for (const c of unjoined) kbd.add({ text: `📢 ${c.name}`, url: c.url, style: "primary" }).row();
-          kbd.add({ text: tr_(lang, "joinedVerify"), callback_data: "verify_channels", style: "success" });
-          await showPanel(ctx, tr_(lang, "channelRequired", { channels: channelList }), { reply_markup: kbd });
+      await requireForceJoin(ctx, lang, dbUser, "watch_ad", async () => {
+        const channels = await getActiveChannels();
+        if (channels.length > 0) {
+          const unjoined = await getUnjoinedChannels(dbUser.id, ctx.from.id, channels);
+          if (unjoined.length > 0) {
+            const channelList = unjoined.map(c => `  • <a href="${c.url}">${c.name}</a>`).join("\n");
+            const kbd = new InlineKeyboard();
+            for (const c of unjoined) kbd.add({ text: `📢 ${c.name}`, url: c.url, style: "primary" }).row();
+            kbd.add({ text: tr_(lang, "joinedVerify"), callback_data: "verify_channels", style: "success" });
+            await showPanel(ctx, tr_(lang, "channelRequired", { channels: channelList }), { reply_markup: kbd });
+            return;
+          }
+        }
+        const result = await startAdWatch(dbUser.id);
+        if (!result.ok) {
+          const errMsg = result.alreadyPending
+            ? tr_(lang, "adAlreadyPending")
+            : tr_(lang, "adsLimit", { max: 25, balance: Number(dbUser.balance).toFixed(2) });
+          await showPanel(ctx, errMsg, {});
           return;
         }
-      }
-      const result = await startAdWatch(dbUser.id);
-      if (!result.ok) {
-        const errMsg = result.alreadyPending
-          ? tr_(lang, "adAlreadyPending")
-          : tr_(lang, "adsLimit", { max: 25, balance: Number(dbUser.balance).toFixed(2) });
-        await showPanel(ctx, errMsg, {});
-        return;
-      }
-      const adKbd = new InlineKeyboard()
-        .add({ text: tr_(lang, "watchNow"), url: ADS_URL, style: "primary" }).row()
-        .add({ text: tr_(lang, "adVerify"), callback_data: `ad_done:${result.token}`, style: "success" });
-      await showPanel(ctx, tr_(lang, "adStarted"), { reply_markup: adKbd });
+        const adKbd = new InlineKeyboard()
+          .add({ text: tr_(lang, "watchNow"), url: ADS_URL, style: "primary" }).row()
+          .add({ text: tr_(lang, "adVerify"), callback_data: `ad_done:${result.token}`, style: "success" });
+        await showPanel(ctx, tr_(lang, "adStarted"), { reply_markup: adKbd });
+      });
       return;
     }
 
@@ -1129,32 +1199,34 @@ export async function startBot(expressApp?: Express) {
     if (!dbUser || dbUser.isBanned) return;
     const lang = (dbUser.language as Lang) ?? "en";
 
-    const channels = await getActiveChannels();
-    if (channels.length > 0) {
-      const unjoined = await getUnjoinedChannels(dbUser.id, ctx.from.id, channels);
-      if (unjoined.length > 0) {
-        const channelList = unjoined.map(c => `  • <a href="${c.url}">${c.name}</a>`).join("\n");
-        const kbd = new InlineKeyboard();
-        for (const c of unjoined) kbd.add({ text: `📢 ${c.name}`, url: c.url, style: "primary" }).row();
-        kbd.add({ text: tr_(lang, "joinedVerify"), callback_data: "verify_channels", style: "success" });
-        await ctx.editMessageText(tr_(lang, "channelRequired", { channels: channelList }), { ...HTML, reply_markup: kbd });
+    await requireForceJoin(ctx, lang, dbUser, "watch_ad", async () => {
+      const channels = await getActiveChannels();
+      if (channels.length > 0) {
+        const unjoined = await getUnjoinedChannels(dbUser.id, ctx.from.id, channels);
+        if (unjoined.length > 0) {
+          const channelList = unjoined.map(c => `  • <a href="${c.url}">${c.name}</a>`).join("\n");
+          const kbd = new InlineKeyboard();
+          for (const c of unjoined) kbd.add({ text: `📢 ${c.name}`, url: c.url, style: "primary" }).row();
+          kbd.add({ text: tr_(lang, "joinedVerify"), callback_data: "verify_channels", style: "success" });
+          await ctx.editMessageText(tr_(lang, "channelRequired", { channels: channelList }), { ...HTML, reply_markup: kbd });
+          return;
+        }
+      }
+
+      const result = await startAdWatch(dbUser.id);
+      if (!result.ok) {
+        const msg = result.alreadyPending
+          ? tr_(lang, "adAlreadyPending")
+          : tr_(lang, "adsLimit", { max: await getNumSetting("max_ads_per_day", 10), balance: Number(dbUser.balance).toFixed(2) });
+        await ctx.editMessageText(msg, HTML);
         return;
       }
-    }
 
-    const result = await startAdWatch(dbUser.id);
-    if (!result.ok) {
-      const msg = result.alreadyPending
-        ? tr_(lang, "adAlreadyPending")
-        : tr_(lang, "adsLimit", { max: await getNumSetting("max_ads_per_day", 10), balance: Number(dbUser.balance).toFixed(2) });
-      await ctx.editMessageText(msg, HTML);
-      return;
-    }
-
-    const kbd = new InlineKeyboard()
-      .add({ text: tr_(lang, "watchNow"), url: ADS_URL, style: "primary" }).row()
-      .add({ text: tr_(lang, "adVerify"), callback_data: `ad_done:${result.token}`, style: "success" });
-    await ctx.editMessageText(tr_(lang, "adStarted"), { ...HTML, reply_markup: kbd });
+      const kbd = new InlineKeyboard()
+        .add({ text: tr_(lang, "watchNow"), url: ADS_URL, style: "primary" }).row()
+        .add({ text: tr_(lang, "adVerify"), callback_data: `ad_done:${result.token}`, style: "success" });
+      await ctx.editMessageText(tr_(lang, "adStarted"), { ...HTML, reply_markup: kbd });
+    });
   });
 
   // ─── Ad complete ──────────────────────────────────────────────────────────
@@ -1198,7 +1270,55 @@ export async function startBot(expressApp?: Express) {
     await handleEarnPanelEdit(ctx, lang, dbUser);
   });
 
+  bot.callbackQuery("refresh_wallet", async (ctx) => {
+    await ctx.answerCallbackQuery("🔄 Refreshed!");
+    const tgId   = String(ctx.from.id);
+    const dbUser = await getUserByTelegramId(tgId);
+    if (!dbUser) return;
+    const lang = (dbUser.language as Lang) ?? "en";
+    await handleWalletOverview(ctx, lang, dbUser);
+  });
+
+  bot.callbackQuery("refresh_tasks", async (ctx) => {
+    await ctx.answerCallbackQuery("🔄 Refreshed!");
+    const tgId   = String(ctx.from.id);
+    const dbUser = await getUserByTelegramId(tgId);
+    if (!dbUser) return;
+    const lang = (dbUser.language as Lang) ?? "en";
+    await handleTaskPanelEdit(ctx, lang, dbUser);
+  });
+
   // ─── Verify channels ──────────────────────────────────────────────────────
+
+  bot.callbackQuery("force_join_verify", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const tgId   = String(ctx.from.id);
+    const dbUser = await getUserByTelegramId(tgId);
+    if (!dbUser) return;
+    const lang     = (dbUser.language as Lang) ?? "en";
+    const required = await getRequiredChannels();
+    const missing: typeof required = [];
+    for (const ch of required) {
+      if (!await checkChannelMembershipByTgId(ch.telegramId, ctx.from.id)) missing.push(ch);
+    }
+    if (missing.length > 0) {
+      const kbd = new InlineKeyboard();
+      missing.forEach((ch) => kbd.url(`📢 ${ch.name}`, ch.url).row());
+      kbd.add({ text: "✅ I've Joined — Verify", callback_data: "force_join_verify", style: "success" });
+      await ctx.editMessageText(
+        `🔒 <b>Join Required</b>\n<code>${SEP}</code>\nStill missing — join and tap Verify again:`,
+        { ...HTML, reply_markup: kbd },
+      );
+      return;
+    }
+    await completeReferralIfPending(dbUser.id).catch(() => null);
+    const action = ctx.session.pendingForceJoinAction;
+    ctx.session.pendingForceJoinAction = undefined;
+    const freshUser = (await getUserByTelegramId(tgId))!;
+    if (action === "withdraw")      await handleWithdrawalPrompt(ctx, lang, freshUser);
+    else if (action === "claim_bonus") await handleTaskPanelEdit(ctx, lang, freshUser);
+    else                             await handleEarnPanelEdit(ctx, lang, freshUser); // "watch_ad" or unknown — safest default
+  });
 
   bot.callbackQuery("verify_channels", async (ctx) => {
     await ctx.answerCallbackQuery();
@@ -1261,21 +1381,23 @@ export async function startBot(expressApp?: Express) {
     const dbUser = await getUserByTelegramId(tgId);
     if (!dbUser) return;
     const lang   = (dbUser.language as Lang) ?? "en";
-    const result = await claimDailyBonus(dbUser.id);
-    if (result.ok) {
-      const bonus = await getNumSetting("daily_bonus", 0.20);
-      const navKbd = new InlineKeyboard()
-        .add({ text: "👀 " + tr_(lang, "watchAdsBtn").replace(/^👀\s*/, ""), callback_data: "go_earn", style: "success" })
-        .add({ text: "🏠 " + tr_(lang, "mainMenuBtn").replace(/^🏠\s*/, ""), callback_data: "go_main", style: "danger"  });
-      await ctx.editMessageText(tr_(lang, "bonusClaimed", {
-        bonus: bonus.toFixed(2),
-        balance: parseFloat(result.balance ?? "0").toFixed(2),
-      }), { ...HTML, reply_markup: navKbd });
-    } else if (result.reason === "alreadyClaimed") {
-      await ctx.answerCallbackQuery(tr_(lang, "alreadyClaimed"));
-    } else {
-      await ctx.answerCallbackQuery(tr_(lang, "tasksNotComplete"));
-    }
+    await requireForceJoin(ctx, lang, dbUser, "claim_bonus", async () => {
+      const result = await claimDailyBonus(dbUser.id);
+      if (result.ok) {
+        const bonus = await getNumSetting("daily_bonus", 0.20);
+        const navKbd = new InlineKeyboard()
+          .add({ text: "👀 " + tr_(lang, "watchAdsBtn").replace(/^👀\s*/, ""), callback_data: "go_earn", style: "success" })
+          .add({ text: "🏠 " + tr_(lang, "mainMenuBtn").replace(/^🏠\s*/, ""), callback_data: "go_main", style: "danger"  });
+        await ctx.editMessageText(tr_(lang, "bonusClaimed", {
+          bonus: bonus.toFixed(2),
+          balance: parseFloat(result.balance ?? "0").toFixed(2),
+        }), { ...HTML, reply_markup: navKbd });
+      } else if (result.reason === "alreadyClaimed") {
+        await ctx.answerCallbackQuery(tr_(lang, "alreadyClaimed"));
+      } else {
+        await ctx.answerCallbackQuery(tr_(lang, "tasksNotComplete"));
+      }
+    });
   });
 
 

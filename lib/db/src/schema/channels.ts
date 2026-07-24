@@ -8,6 +8,7 @@ export const channelsTable = pgTable("channels", {
   url: text("url").notNull(), // https://t.me/channel
   reward: numeric("reward", { precision: 10, scale: 4 }).notNull().default("0.0500"),
   isActive: boolean("is_active").notNull().default(true),
+  isRequired: boolean("is_required").notNull().default(false), // force-join gate channel
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
