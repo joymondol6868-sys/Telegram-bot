@@ -14,7 +14,6 @@ export const usersTable = pgTable("users", {
   referralCode: text("referral_code").notNull().unique(),
   referredBy: integer("referred_by"),
   isBanned: boolean("is_banned").notNull().default(false),
-  suspendedUntil: timestamp("suspended_until"), // temporary lock (e.g. ad-abandon strikes)
   lastPanelMsgId: integer("last_panel_msg_id"), // track last bot panel for cleanup
   walletMethod: text("wallet_method"),          // saved withdrawal method (e.g. "bkash")
   walletAddress: text("wallet_address"),        // saved wallet address / number

@@ -71,13 +71,6 @@ export async function getActiveChannels() {
     .orderBy(channelsTable.sortOrder, channelsTable.id);
 }
 
-/** Force-join gate list — active channels flagged mandatory in the admin panel. */
-export async function getRequiredChannels() {
-  return db.select().from(channelsTable)
-    .where(and(eq(channelsTable.isActive, true), eq(channelsTable.isRequired, true)))
-    .orderBy(channelsTable.sortOrder, channelsTable.id);
-}
-
 export async function getChannelJoin(userId: number, channelId: number) {
   const rows = await db.select().from(channelJoinsTable)
     .where(and(eq(channelJoinsTable.userId, userId), eq(channelJoinsTable.channelId, channelId)))
@@ -125,13 +118,13 @@ export async function getOrCreateUser(
   lastName: string | null,
   username: string | null,
   referralCode?: string,
-): Promise<{ user: typeof usersTable.$inferSelect; isNew: boolean }> {
+) {
   const existing = await db.select().from(usersTable).where(eq(usersTable.telegramId, telegramId)).limit(1);
   if (existing[0]) {
     await db.update(usersTable)
       .set({ lastActive: new Date(), firstName, lastName: lastName ?? undefined, username: username ?? undefined })
       .where(eq(usersTable.telegramId, telegramId));
-    return { user: existing[0], isNew: false };
+    return existing[0];
   }
 
   // Find referrer
@@ -161,50 +154,26 @@ export async function getOrCreateUser(
 
   if (!newUser) throw new Error("Failed to create user");
 
-  // Referral is recorded as PENDING here — no reward yet. It only becomes
-  // "success" (and only then pays the referrer) once this new user actually
-  // clears the force-join gate — see completeReferralIfPending().
+  // Referral bonus
   if (referrerId) {
     const refReward = await getNumSetting("referral_reward", 0.05);
-    await db.insert(referralsTable).values({
-      referrerId, referredId: newUser.id, amount: String(refReward), status: "pending",
-    });
-    await logActivity("referral_pending", `Pending referral for user #${referrerId} (awaiting force-join)`, referrerId);
+    await db.update(usersTable)
+      .set({ balance: sql`balance + ${refReward}`, totalEarned: sql`total_earned + ${refReward}` })
+      .where(eq(usersTable.id, referrerId));
+    await db.insert(referralsTable).values({ referrerId, referredId: newUser.id, amount: String(refReward) });
+
+    // Referrer daily task
+    const today = todayStr();
+    const task = await db.select().from(dailyTasksTable)
+      .where(and(eq(dailyTasksTable.userId, referrerId), eq(dailyTasksTable.taskDate, today))).limit(1);
+    if (task[0] && !task[0].referralDone) {
+      await db.update(dailyTasksTable).set({ referralDone: true }).where(eq(dailyTasksTable.id, task[0].id));
+    }
+    await logActivity("referral", `New referral +$${refReward.toFixed(2)} for user #${referrerId}`, referrerId);
   }
 
   await logActivity("join", `New user joined: ${firstName}`, newUser.id);
-  return { user: newUser, isNew: true };
-}
-
-/**
- * Call this the first time a referred user successfully clears the
- * force-join gate. Flips their referral row from "pending" to "success",
- * credits the referrer, and marks the referrer's daily "invite a friend"
- * task. No-op if there's no pending referral (organic user, or already
- * completed) — safe to call every time the gate passes.
- */
-export async function completeReferralIfPending(referredUserId: number) {
-  const rows = await db.select().from(referralsTable)
-    .where(and(eq(referralsTable.referredId, referredUserId), eq(referralsTable.status, "pending")))
-    .limit(1);
-  const referral = rows[0];
-  if (!referral) return null;
-
-  const amount = Number(referral.amount);
-  await db.update(referralsTable).set({ status: "success" }).where(eq(referralsTable.id, referral.id));
-  await db.update(usersTable)
-    .set({ balance: sql`balance + ${amount}`, totalEarned: sql`total_earned + ${amount}` })
-    .where(eq(usersTable.id, referral.referrerId));
-
-  const today = todayStr();
-  const task = await db.select().from(dailyTasksTable)
-    .where(and(eq(dailyTasksTable.userId, referral.referrerId), eq(dailyTasksTable.taskDate, today))).limit(1);
-  if (task[0] && !task[0].referralDone) {
-    await db.update(dailyTasksTable).set({ referralDone: true }).where(eq(dailyTasksTable.id, task[0].id));
-  }
-
-  await logActivity("referral", `Referral confirmed +$${amount.toFixed(2)} for user #${referral.referrerId}`, referral.referrerId);
-  return { referrerId: referral.referrerId, amount };
+  return newUser;
 }
 
 export async function getUserByTelegramId(telegramId: string) {
@@ -255,37 +224,6 @@ export async function issueWarning(userId: number, reason: string): Promise<{ ba
 
   await logActivity("warning", `Warning issued: ${reason} (${warnCount}/${warnLimit})`, userId);
   return { banned: false, warningCount: warnCount };
-}
-
-// ─── Temporary suspension (Adsgram ad-abandon strikes) ─────────────────────────
-// Separate from the permanent-ban warning system above: this is a short,
-// auto-expiring lock, not a ban. Reason is always "adsgram_abandon" so its
-// count never mixes with the ad-cheat warning counter.
-
-export async function getSuspension(userId: number): Promise<Date | null> {
-  const [row] = await db.select({ suspendedUntil: usersTable.suspendedUntil })
-    .from(usersTable).where(eq(usersTable.id, userId)).limit(1);
-  if (!row?.suspendedUntil) return null;
-  return row.suspendedUntil > new Date() ? row.suspendedUntil : null;
-}
-
-export async function issueAdAbandonStrike(userId: number): Promise<{ suspended: boolean; strikeCount: number; until?: Date }> {
-  const reason = "adsgram_abandon";
-  await db.insert(userWarningsTable).values({ userId, reason, issuedBy: "system" });
-  const [row] = await db.select({ cnt: count() }).from(userWarningsTable)
-    .where(and(eq(userWarningsTable.userId, userId), eq(userWarningsTable.reason, reason)));
-  const strikeCount = row?.cnt ?? 0;
-  const strikeLimit = await getNumSetting("ad_abandon_strike_limit", 5);
-
-  if (strikeCount >= strikeLimit) {
-    const until = new Date(Date.now() + 5 * 60 * 60 * 1000); // 5 hours
-    await db.update(usersTable).set({ suspendedUntil: until }).where(eq(usersTable.id, userId));
-    await logActivity("suspend", `User suspended 5h after ${strikeCount} ad-abandon strikes`, userId);
-    return { suspended: true, strikeCount, until };
-  }
-
-  await logActivity("warning", `Ad-abandon strike ${strikeCount}/${strikeLimit}`, userId);
-  return { suspended: false, strikeCount };
 }
 
 // ─── Ads ──────────────────────────────────────────────────────────────────────
@@ -434,18 +372,9 @@ export async function claimDailyBonus(userId: number): Promise<{ ok: boolean; re
 // ─── Referrals ────────────────────────────────────────────────────────────────
 
 export async function getReferralStats(userId: number) {
-  const rows = await db.select().from(referralsTable)
-    .where(and(eq(referralsTable.referrerId, userId), eq(referralsTable.status, "success")));
+  const rows = await db.select().from(referralsTable).where(eq(referralsTable.referrerId, userId));
   const total = rows.reduce((s, r) => s + Number(r.amount), 0);
   return { count: rows.length, earned: total };
-}
-
-/** Milestone ad-limit bonus tiers (flat total per tier, not stacked). */
-export function getReferralBonusLimit(successfulReferrals: number): number {
-  if (successfulReferrals >= 40) return 50;
-  if (successfulReferrals >= 25) return 20;
-  if (successfulReferrals >= 15) return 10;
-  return 0;
 }
 
 // ─── Withdrawals ──────────────────────────────────────────────────────────────
