@@ -12,6 +12,7 @@ import {
   getNumSetting, seedSettings, saveUserPanelMsg,
   updateUserWallet, updateUserName,
   getTopEarners, getBotStats,
+  getEffectiveAdsLimit, getNextMilestone, REFERRAL_MILESTONES,
 } from "./db.js";
 import { tr_, LANGUAGES, bar, escHtml, type Lang } from "./languages.js";
 
@@ -589,18 +590,73 @@ export async function startBot(expressApp?: Express) {
   }
 
   async function buildEarnData(dbUser: NonNullable<FullUser>) {
-    const BASE_LIMIT = 25;
-    const [refs, todayAds] = await Promise.all([
-      getReferralStats(dbUser.id),
+    const [limit, todayAds] = await Promise.all([
+      getEffectiveAdsLimit(dbUser.id),
       getTodayAds(dbUser.id),
     ]);
-    const bonus_limit = refs.count;
-    const total_limit = BASE_LIMIT + bonus_limit;
+    const base_limit  = limit.base;
+    const bonus_limit = limit.bonus;
+    const total_limit = limit.total;
     const watched     = todayAds?.count ?? 0;
     const remaining   = Math.max(total_limit - watched, 0);
     const todayEarned = parseFloat(String(todayAds?.todayEarned ?? "0")).toFixed(2);
     const balance     = parseFloat(String(dbUser.balance)).toFixed(2);
-    return { bonus_limit, total_limit, watched, remaining, todayEarned, balance };
+    return { base_limit, bonus_limit, total_limit, watched, remaining, todayEarned, balance };
+  }
+
+  /** Every language's earnMsg template uses a different subset of these — pass them all. */
+  function earnMsgVars(d: Awaited<ReturnType<typeof buildEarnData>>) {
+    return {
+      base_limit: d.base_limit, bonus_limit: d.bonus_limit, total_limit: d.total_limit,
+      max: d.total_limit, watched: d.watched, remaining: d.remaining,
+      bar: bar(d.watched, d.total_limit), todayEarned: d.todayEarned, balance: d.balance,
+    };
+  }
+
+  async function handleUpgradeLimitPanel(ctx: BotCtx, lang: Lang, dbUser: NonNullable<FullUser>) {
+    const [refs, limit] = await Promise.all([
+      getReferralStats(dbUser.id),
+      getEffectiveAdsLimit(dbUser.id),
+    ]);
+    const link = dbUser.referralCode ? getReferralLink(dbUser.referralCode) : "N/A";
+
+    const claimed = new Set<number>(
+      (dbUser.claimedMilestones ?? "").split(",").filter(Boolean).map(Number),
+    );
+    const rows = REFERRAL_MILESTONES.map(tier => {
+      const done = claimed.has(tier.referrals);
+      return tr_(lang, done ? "milestoneRowDone" : "milestoneRowTodo", {
+        referrals: tier.referrals, bonusAds: tier.bonusAds, days: tier.days, cashBonus: tier.cashBonus.toFixed(2),
+      });
+    });
+
+    const next = getNextMilestone(refs.count);
+    const nextLine = next
+      ? tr_(lang, "upgradeLimitNext", { left: Math.max(next.referrals - refs.count, 0) })
+      : tr_(lang, "upgradeLimitMaxed");
+
+    const activeLine = limit.bonusExpiresAt
+      ? tr_(lang, "upgradeLimitActive", {
+          bonusAds: limit.bonus,
+          daysLeft: Math.max(Math.ceil((limit.bonusExpiresAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000)), 0),
+        })
+      : tr_(lang, "upgradeLimitNone");
+
+    const msg = [
+      `<b>${tr_(lang, "upgradeLimitTitle")}</b>`,
+      tr_(lang, "upgradeLimitIntro"),
+      "",
+      tr_(lang, "upgradeLimitCount", { count: refs.count }),
+      activeLine,
+      nextLine,
+      "",
+      rows.join("\n"),
+      "",
+      tr_(lang, "upgradeLimitLink", { link }),
+    ].join("\n");
+
+    const kbd = new Keyboard().add({ text: tr_(lang, "backBtn"), style: "danger" }).resized();
+    await showPanel(ctx, msg, { reply_markup: kbd });
   }
 
   function buildEarnKeyboard(lang: Lang, remaining: number): Keyboard {
@@ -618,7 +674,7 @@ export async function startBot(expressApp?: Express) {
   async function handleEarnPanel(ctx: BotCtx, lang: Lang, dbUser: NonNullable<FullUser>) {
     const d = await buildEarnData(dbUser);
     const msg = d.remaining > 0
-      ? tr_(lang, "earnMsg",  { bonus_limit: d.bonus_limit, total_limit: d.total_limit, remaining: d.remaining })
+      ? tr_(lang, "earnMsg",  earnMsgVars(d))
       : tr_(lang, "earnDone", { balance: d.balance, max: d.total_limit });
     await showPanel(ctx, msg, { reply_markup: buildEarnKeyboard(lang, d.remaining) });
   }
@@ -626,7 +682,7 @@ export async function startBot(expressApp?: Express) {
   async function handleEarnPanelEdit(ctx: BotCtx, lang: Lang, dbUser: NonNullable<FullUser>) {
     const d = await buildEarnData(dbUser);
     const msg = d.remaining > 0
-      ? tr_(lang, "earnMsg",  { bonus_limit: d.bonus_limit, total_limit: d.total_limit, remaining: d.remaining })
+      ? tr_(lang, "earnMsg",  earnMsgVars(d))
       : tr_(lang, "earnDone", { balance: d.balance, max: d.total_limit });
     await ctx.editMessageText(msg, HTML).catch(() => {});
   }
@@ -1088,7 +1144,7 @@ export async function startBot(expressApp?: Express) {
       if (!result.ok) {
         const errMsg = result.alreadyPending
           ? tr_(lang, "adAlreadyPending")
-          : tr_(lang, "adsLimit", { max: 25, balance: Number(dbUser.balance).toFixed(2) });
+          : tr_(lang, "adsLimit", { max: (await getEffectiveAdsLimit(dbUser.id)).total, balance: Number(dbUser.balance).toFixed(2) });
         await showPanel(ctx, errMsg, {});
         return;
       }
@@ -1103,7 +1159,17 @@ export async function startBot(expressApp?: Express) {
 
     if (text === tr_(lang, "upgradeLimitBtn")) {
       clearState(ctx);
-      await handleReferralPanel(ctx, lang, dbUser);
+      dbUser = (await getUserByTelegramId(tgId))!;
+      await handleUpgradeLimitPanel(ctx, lang, dbUser);
+      return;
+    }
+
+    // ── ⬅️ Back (from Upgrade Daily Limit panel → earn sub-menu) ────────────
+
+    if (text === tr_(lang, "backBtn")) {
+      clearState(ctx);
+      dbUser = (await getUserByTelegramId(tgId))!;
+      await handleEarnPanel(ctx, lang, dbUser);
       return;
     }
 

@@ -12,7 +12,7 @@ export type BotSetting = typeof botSettingsTable.$inferSelect;
 // Default settings seeded on first boot
 export const DEFAULT_SETTINGS: Record<string, { value: string; description: string }> = {
   ad_reward:          { value: "0.0100", description: "Dollar amount credited per ad watched" },
-  max_ads_per_day:    { value: "10",     description: "Maximum ads a user can watch per day" },
+  max_ads_per_day:    { value: "25",     description: "Base ads a user can watch per day (before referral milestone bonus)" },
   referral_reward:    { value: "0.0500", description: "Dollar amount credited per valid referral" },
   min_withdrawal:     { value: "0.50",   description: "Minimum balance required to withdraw" },
   daily_bonus:        { value: "0.20",   description: "Total bonus for completing all daily tasks" },

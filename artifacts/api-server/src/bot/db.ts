@@ -22,6 +22,91 @@ function randomToken(len = 12): string {
   return Array.from({ length: len }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
 }
 
+// ─── Referral milestones ("Upgrade Daily Limit") ──────────────────────────────
+// Each tier is unlocked once the user's total referral count reaches it.
+// Reaching a HIGHER tier replaces the previous one's bonus (does not stack) —
+// this keeps the incentive alive: keep referring to keep/extend the boost.
+export interface ReferralMilestone {
+  referrals: number;   // total referrals needed to unlock this tier
+  bonusAds: number;    // extra ads/day granted while the tier is active
+  days: number;        // how many days the bonus lasts from the moment it's unlocked
+  cashBonus: number;   // one-time dollar bonus paid when the tier is first reached
+}
+
+export const REFERRAL_MILESTONES: ReferralMilestone[] = [
+  { referrals: 15, bonusAds: 10, days: 7,  cashBonus: 0.50 },
+  { referrals: 25, bonusAds: 20, days: 15, cashBonus: 1.00 },
+  { referrals: 40, bonusAds: 35, days: 30, cashBonus: 2.00 },
+  { referrals: 60, bonusAds: 50, days: 60, cashBonus: 3.50 },
+];
+
+/**
+ * Checks whether a referrer's new total referral count just unlocked a new
+ * milestone tier, and if so, credits the one-time cash bonus and (re)sets the
+ * temporary daily-ads bonus + its expiry. Safe to call after every referral —
+ * it only pays a given tier once (tracked in `claimedMilestones`).
+ */
+export async function applyReferralMilestones(
+  referrerId: number,
+  newReferralCount: number,
+): Promise<{ unlocked?: ReferralMilestone } > {
+  const [user] = await db.select({ claimedMilestones: usersTable.claimedMilestones })
+    .from(usersTable).where(eq(usersTable.id, referrerId)).limit(1);
+  if (!user) return {};
+
+  const claimed = new Set<number>(
+    (user.claimedMilestones ?? "").split(",").filter(Boolean).map(Number),
+  );
+
+  // Find the highest newly-reached tier (in case several are crossed at once)
+  let newlyReached: ReferralMilestone | undefined;
+  for (const tier of REFERRAL_MILESTONES) {
+    if (newReferralCount >= tier.referrals && !claimed.has(tier.referrals)) {
+      newlyReached = tier;
+    }
+  }
+  if (!newlyReached) return {};
+
+  claimed.add(newlyReached.referrals);
+  const expiresAt = new Date(Date.now() + newlyReached.days * 24 * 60 * 60 * 1000);
+
+  await db.update(usersTable)
+    .set({
+      balance: sql`balance + ${newlyReached.cashBonus}`,
+      totalEarned: sql`total_earned + ${newlyReached.cashBonus}`,
+      bonusAdsAmount: newlyReached.bonusAds,
+      bonusAdsExpiresAt: expiresAt,
+      claimedMilestones: Array.from(claimed).sort((a: number, b: number) => a - b).join(","),
+    })
+    .where(eq(usersTable.id, referrerId));
+
+  await logActivity(
+    "milestone",
+    `Referral milestone reached: ${newlyReached.referrals} refs → +${newlyReached.bonusAds} ads/day for ${newlyReached.days}d + $${newlyReached.cashBonus.toFixed(2)}`,
+    referrerId,
+  );
+
+  return { unlocked: newlyReached };
+}
+
+/** Base daily ads limit + any still-active referral-milestone bonus. */
+export async function getEffectiveAdsLimit(userId: number): Promise<{ base: number; bonus: number; total: number; bonusExpiresAt: Date | null }> {
+  const base = await getNumSetting("max_ads_per_day", 25);
+  const [user] = await db.select({
+    bonusAdsAmount: usersTable.bonusAdsAmount,
+    bonusAdsExpiresAt: usersTable.bonusAdsExpiresAt,
+  }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+
+  const active = !!user?.bonusAdsExpiresAt && new Date(user.bonusAdsExpiresAt) > new Date();
+  const bonus = active ? (user!.bonusAdsAmount ?? 0) : 0;
+  return { base, bonus, total: base + bonus, bonusExpiresAt: active ? new Date(user!.bonusAdsExpiresAt!) : null };
+}
+
+/** Next unreached milestone tier for a given referral count, if any. */
+export function getNextMilestone(referralCount: number): ReferralMilestone | undefined {
+  return REFERRAL_MILESTONES.find(t => t.referrals > referralCount);
+}
+
 // ─── Settings ────────────────────────────────────────────────────────────────
 
 export async function seedSettings() {
@@ -162,6 +247,10 @@ export async function getOrCreateUser(
       .where(eq(usersTable.id, referrerId));
     await db.insert(referralsTable).values({ referrerId, referredId: newUser.id, amount: String(refReward) });
 
+    // Check/apply referral milestone tiers (Upgrade Daily Limit)
+    const [{ count: refCount }] = await db.select({ count: count() }).from(referralsTable).where(eq(referralsTable.referrerId, referrerId));
+    await applyReferralMilestones(referrerId, refCount);
+
     // Referrer daily task
     const today = todayStr();
     const task = await db.select().from(dailyTasksTable)
@@ -238,7 +327,7 @@ export async function getTodayAds(userId: number) {
 
 export async function startAdWatch(userId: number): Promise<{ ok: boolean; token?: string; alreadyPending?: boolean; limitReached?: boolean }> {
   const today = todayStr();
-  const maxAds = await getNumSetting("max_ads_per_day", 10);
+  const { total: maxAds } = await getEffectiveAdsLimit(userId);
   const row = await getTodayAds(userId);
 
   if (row && Number(row.count) >= maxAds) return { ok: false, limitReached: true };
@@ -288,7 +377,7 @@ export async function completeAdWatch(userId: number, token: string): Promise<{ 
     return { ok: false, cheated: true };
   }
 
-  const maxAds = await getNumSetting("max_ads_per_day", 10);
+  const { total: maxAds } = await getEffectiveAdsLimit(userId);
   if (Number(row.count) >= maxAds) {
     await db.update(adsWatchedTable).set({ pendingAdStart: null, pendingAdToken: null }).where(eq(adsWatchedTable.id, row.id));
     return { ok: false };
