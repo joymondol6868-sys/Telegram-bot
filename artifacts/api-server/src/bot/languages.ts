@@ -533,6 +533,10 @@ ${$phone} <b>Select payment method:</b>`,
 You need at least <b>$ {minWd}</b> to withdraw.
 ${$wallet} <i>Your Balance:</i> <b>$ {balance}</b>`,
 
+    withdrawNeedOwnEarning: `${$cross} <b>Withdrawal Not Allowed Yet</b>
+<code>${SEP}</code>
+Too much of your balance comes from referrals. Watch a few more ads or complete daily tasks yourself, then try again.`,
+
     withdrawAddress:  `${$note} Enter your <b>{method}</b> number or wallet address:`,
     enterWalletAddress: `${$note} Enter your <b>{method}</b> wallet address:\n<code>${LINE}</code>\n${$zap} <i>Example:</i> <code>{example}</code>`,
     withdrawConfirm: `${$check} <b>Withdrawal Request Submitted!</b>
@@ -542,6 +546,31 @@ ${$bank} Method:  <b>{method}</b>
 ${$mailbox} Address: <code>{address}</code>
 <code>${LINE}</code>
 ${$clock} Payment processed within <b>24 hours</b>.`,
+
+    withdrawApprovedMsg: `${$check} <b>Withdrawal Approved!</b>
+<code>${SEP}</code>
+${$dollar} Amount: <b>$ {amount}</b>
+${$bank} Method: <b>{method}</b>
+${$zap} Your payment has been sent. Thank you!`,
+
+    withdrawRejectedMsg: `${$cross} <b>Withdrawal Rejected</b>
+<code>${SEP}</code>
+${$dollar} Amount: <b>$ {amount}</b>
+${$bank} Method: <b>{method}</b>
+{note}
+${$wallet} The amount has been refunded to your balance.`,
+
+    referralQualifiedMsg: `${$check} <b>Referral Bonus Earned!</b>
+<code>${SEP}</code>
+Your friend just completed their first activity — you earned <b>$ {amount}</b>! Keep inviting to earn more.`,
+
+    milestoneUnlockedMsg: `${$zap} <b>Milestone Unlocked!</b>
+<code>${SEP}</code>
+You've reached <b>{referrals} referrals</b> — bonus <b>+{bonusAds} ads/day</b> for <b>{days} days</b> + <b>$ {cashBonus}</b> cash bonus!`,
+
+    inactiveReminderMsg: `${$zap} <b>We miss you!</b>
+<code>${SEP}</code>
+Your daily ads and tasks are waiting — come back and keep earning before you lose your streak!`,
 
     withdrawPending: `${$hourglass} You already have a <b>pending withdrawal</b>. Please wait.`,
     withdrawSelect:  "Select payment method:",
@@ -882,6 +911,10 @@ ${$phone} <b>পেমেন্ট পদ্ধতি বেছে নিন:</b
 উইথড্রের জন্য কমপক্ষে <b>$ {minWd}</b> প্রয়োজন।
 ${$wallet} <i>আপনার ব্যালেন্স:</i> <b>$ {balance}</b>`,
 
+    withdrawNeedOwnEarning: `${$cross} <b>এখনো উইথড্র করা যাবে না</b>
+<code>${SEP}</code>
+আপনার ব্যালেন্সের বেশিরভাগ রেফারেল থেকে এসেছে। নিজে আরো কিছু Ads দেখুন বা Daily Task সম্পূর্ণ করুন, তারপর আবার চেষ্টা করুন।`,
+
     withdrawAddress:  `${$note} আপনার <b>{method}</b> নম্বর বা ওয়ালেট ঠিকানা দিন:`,
     enterWalletAddress: `${$note} আপনার <b>{method}</b> ওয়ালেট ঠিকানা দিন:\n<code>${LINE}</code>\n${$zap} <i>উদাহরণ:</i> <code>{example}</code>`,
     withdrawConfirm: `${$check} <b>উইথড্র রিকোয়েস্ট জমা হয়েছে!</b>
@@ -891,6 +924,31 @@ ${$bank} পদ্ধতি:    <b>{method}</b>
 ${$mailbox} ঠিকানা:  <code>{address}</code>
 <code>${LINE}</code>
 ${$clock} <b>২৪ ঘন্টার</b> মধ্যে পেমেন্ট প্রক্রিয়া হবে।`,
+
+    withdrawApprovedMsg: `${$check} <b>উইথড্র অনুমোদিত হয়েছে!</b>
+<code>${SEP}</code>
+${$dollar} পরিমাণ: <b>$ {amount}</b>
+${$bank} পদ্ধতি: <b>{method}</b>
+${$zap} আপনার পেমেন্ট পাঠানো হয়েছে। ধন্যবাদ!`,
+
+    withdrawRejectedMsg: `${$cross} <b>উইথড্র বাতিল হয়েছে</b>
+<code>${SEP}</code>
+${$dollar} পরিমাণ: <b>$ {amount}</b>
+${$bank} পদ্ধতি: <b>{method}</b>
+{note}
+${$wallet} টাকা আপনার ব্যালেন্সে ফেরত দেওয়া হয়েছে।`,
+
+    referralQualifiedMsg: `${$check} <b>রেফারেল বোনাস পেয়েছেন!</b>
+<code>${SEP}</code>
+আপনার বন্ধু প্রথম Activity সম্পূর্ণ করেছে — আপনি <b>$ {amount}</b> পেয়েছেন! আরো ইনভাইট করে বেশি আয় করুন।`,
+
+    milestoneUnlockedMsg: `${$zap} <b>মাইলস্টোন Unlock হয়েছে!</b>
+<code>${SEP}</code>
+আপনি <b>{referrals} জন রেফার</b> করেছেন — বোনাস <b>+{bonusAds} Ads/দিন</b> আগামী <b>{days} দিন</b> এর জন্য + <b>$ {cashBonus}</b> ক্যাশ বোনাস!`,
+
+    inactiveReminderMsg: `${$zap} <b>আপনাকে মিস করছি!</b>
+<code>${SEP}</code>
+আপনার আজকের Ads আর Task এখনো বাকি — ফিরে এসে আয় চালিয়ে যান, স্ট্রিক হারানোর আগেই!`,
 
     withdrawPending: `${$hourglass} ইতিমধ্যে একটি <b>পেন্ডিং উইথড্র</b> আছে। অপেক্ষা করুন।`,
     withdrawSelect:  "পেমেন্ট পদ্ধতি বেছে নিন:",
@@ -1230,6 +1288,10 @@ ${$phone} <b>भुगतान विधि चुनें:</b>`,
 निकासी के लिए कम से कम <b>$ {minWd}</b> चाहिए।
 ${$wallet} <i>आपका बैलेंस:</i> <b>$ {balance}</b>`,
 
+    withdrawNeedOwnEarning: `${$cross} <b>अभी निकासी संभव नहीं</b>
+<code>${SEP}</code>
+आपके बैलेंस का बड़ा हिस्सा रेफरल से है। कुछ और विज्ञापन देखें या दैनिक टास्क पूरे करें, फिर दोबारा कोशिश करें।`,
+
     withdrawAddress:  `${$note} अपना <b>{method}</b> नंबर या वॉलेट पता दर्ज करें:`,
     enterWalletAddress: `${$note} अपना <b>{method}</b> वॉलेट पता दर्ज करें:\n<code>${LINE}</code>\n${$zap} <i>उदाहरण:</i> <code>{example}</code>`,
     withdrawConfirm: `${$check} <b>निकासी अनुरोध सबमिट!</b>
@@ -1239,6 +1301,19 @@ ${$bank} विधि:     <b>{method}</b>
 ${$mailbox} पता:     <code>{address}</code>
 <code>${LINE}</code>
 ${$clock} <b>24 घंटे</b> में भुगतान प्रक्रिया होगी।`,
+
+    withdrawApprovedMsg: `${$check} <b>निकासी स्वीकृत!</b>
+<code>${SEP}</code>
+${$dollar} राशि: <b>$ {amount}</b>
+${$bank} विधि: <b>{method}</b>
+${$zap} आपका भुगतान भेज दिया गया है। धन्यवाद!`,
+
+    withdrawRejectedMsg: `${$cross} <b>निकासी अस्वीकृत</b>
+<code>${SEP}</code>
+${$dollar} राशि: <b>$ {amount}</b>
+${$bank} विधि: <b>{method}</b>
+{note}
+${$wallet} राशि आपके बैलेंस में वापस कर दी गई है।`,
 
     withdrawPending: `${$hourglass} पहले से एक <b>लंबित निकासी</b> है। प्रतीक्षा करें।`,
     withdrawSelect:  "भुगतान विधि चुनें:",
@@ -1506,6 +1581,10 @@ ${$phone} <b>اختر طريقة الدفع:</b>`,
 تحتاج <b>$ {minWd}</b> على الأقل للسحب.
 ${$wallet} <i>رصيدك:</i> <b>$ {balance}</b>`,
 
+    withdrawNeedOwnEarning: `${$cross} <b>السحب غير متاح بعد</b>
+<code>${SEP}</code>
+جزء كبير من رصيدك جاء من الإحالات. شاهد بعض الإعلانات أو أكمل المهام اليومية بنفسك، ثم حاول مرة أخرى.`,
+
     withdrawAddress:  `${$note} أدخل رقم <b>{method}</b> أو عنوان المحفظة:`,
     enterWalletAddress: `${$note} أدخل عنوان محفظة <b>{method}</b>:\n<code>${LINE}</code>\n${$zap} <i>مثال:</i> <code>{example}</code>`,
     withdrawConfirm: `${$check} <b>طلب السحب مُرسَل!</b>
@@ -1515,6 +1594,19 @@ ${$bank} الطريقة:  <b>{method}</b>
 ${$mailbox} العنوان:  <code>{address}</code>
 <code>${LINE}</code>
 ${$clock} الدفع خلال <b>24 ساعة</b>.`,
+
+    withdrawApprovedMsg: `${$check} <b>تمت الموافقة على السحب!</b>
+<code>${SEP}</code>
+${$dollar} المبلغ: <b>$ {amount}</b>
+${$bank} الطريقة: <b>{method}</b>
+${$zap} تم إرسال دفعتك. شكرًا لك!`,
+
+    withdrawRejectedMsg: `${$cross} <b>تم رفض السحب</b>
+<code>${SEP}</code>
+${$dollar} المبلغ: <b>$ {amount}</b>
+${$bank} الطريقة: <b>{method}</b>
+{note}
+${$wallet} تم إرجاع المبلغ إلى رصيدك.`,
 
     withdrawPending: `${$hourglass} لديك <b>طلب سحب معلق</b>. انتظر معالجته.`,
     withdrawSelect:  "اختر طريقة الدفع:",
@@ -1772,6 +1864,10 @@ ${$phone} <b>Выберите способ оплаты:</b>`,
 Необходимо минимум <b>$ {minWd}</b> для вывода.
 ${$wallet} <i>Ваш баланс:</i> <b>$ {balance}</b>`,
 
+    withdrawNeedOwnEarning: `${$cross} <b>Вывод пока недоступен</b>
+<code>${SEP}</code>
+Слишком большая часть баланса получена по рефералам. Посмотрите ещё рекламу или выполните ежедневные задания сами, затем попробуйте снова.`,
+
     withdrawAddress:  `${$note} Введите ваш номер <b>{method}</b> или адрес кошелька:`,
     enterWalletAddress: `${$note} Введите адрес кошелька <b>{method}</b>:\n<code>${LINE}</code>\n${$zap} <i>Пример:</i> <code>{example}</code>`,
     withdrawConfirm: `${$check} <b>Запрос на вывод подан!</b>
@@ -1781,6 +1877,19 @@ ${$bank} Способ:  <b>{method}</b>
 ${$mailbox} Адрес:   <code>{address}</code>
 <code>${LINE}</code>
 ${$clock} Оплата в течение <b>24 часов</b>.`,
+
+    withdrawApprovedMsg: `${$check} <b>Вывод одобрен!</b>
+<code>${SEP}</code>
+${$dollar} Сумма: <b>$ {amount}</b>
+${$bank} Способ: <b>{method}</b>
+${$zap} Ваш платёж отправлен. Спасибо!`,
+
+    withdrawRejectedMsg: `${$cross} <b>Вывод отклонён</b>
+<code>${SEP}</code>
+${$dollar} Сумма: <b>$ {amount}</b>
+${$bank} Способ: <b>{method}</b>
+{note}
+${$wallet} Сумма возвращена на ваш баланс.`,
 
     withdrawPending: `${$hourglass} У вас уже есть <b>ожидающий вывод</b>. Подождите.`,
     withdrawSelect:  "Выберите способ:",
@@ -2038,6 +2147,10 @@ ${$phone} <b>Ödeme yöntemini seçin:</b>`,
 Çekim için en az <b>$ {minWd}</b> gerekli.
 ${$wallet} <i>Bakiyeniz:</i> <b>$ {balance}</b>`,
 
+    withdrawNeedOwnEarning: `${$cross} <b>Para Çekme Henüz Uygun Değil</b>
+<code>${SEP}</code>
+Bakiyenizin çoğu referanslardan geliyor. Birkaç reklam daha izleyin veya günlük görevleri kendiniz tamamlayın, sonra tekrar deneyin.`,
+
     withdrawAddress:  `${$note} <b>{method}</b> numaranızı veya cüzdan adresinizi girin:`,
     enterWalletAddress: `${$note} <b>{method}</b> cüzdan adresinizi girin:\n<code>${LINE}</code>\n${$zap} <i>Örnek:</i> <code>{example}</code>`,
     withdrawConfirm: `${$check} <b>Çekim Talebi Gönderildi!</b>
@@ -2047,6 +2160,19 @@ ${$bank} Yöntem:  <b>{method}</b>
 ${$mailbox} Adres:   <code>{address}</code>
 <code>${LINE}</code>
 ${$clock} <b>24 saat</b> içinde ödeme yapılır.`,
+
+    withdrawApprovedMsg: `${$check} <b>Para Çekme Onaylandı!</b>
+<code>${SEP}</code>
+${$dollar} Miktar: <b>$ {amount}</b>
+${$bank} Yöntem: <b>{method}</b>
+${$zap} Ödemeniz gönderildi. Teşekkürler!`,
+
+    withdrawRejectedMsg: `${$cross} <b>Para Çekme Reddedildi</b>
+<code>${SEP}</code>
+${$dollar} Miktar: <b>$ {amount}</b>
+${$bank} Yöntem: <b>{method}</b>
+{note}
+${$wallet} Tutar bakiyenize iade edildi.`,
 
     withdrawPending: `${$hourglass} <b>Bekleyen bir çekim talebi</b> var. İşlenmesini bekleyin.`,
     withdrawSelect:  "Yöntem seçin:",
@@ -2304,6 +2430,10 @@ ${$phone} <b>ادائیگی کا طریقہ چنیں:</b>`,
 نکاسی کے لیے کم از کم <b>$ {minWd}</b> چاہیے۔
 ${$wallet} <i>آپ کا بیلنس:</i> <b>$ {balance}</b>`,
 
+    withdrawNeedOwnEarning: `${$cross} <b>ابھی نکاسی ممکن نہیں</b>
+<code>${SEP}</code>
+آپ کے بیلنس کا زیادہ تر حصہ ریفرل سے ہے۔ کچھ اور اشتہارات دیکھیں یا روزانہ ٹاسک خود مکمل کریں، پھر دوبارہ کوشش کریں۔`,
+
     withdrawAddress:  `${$note} اپنا <b>{method}</b> نمبر یا ولٹ پتہ درج کریں:`,
     enterWalletAddress: `${$note} اپنا <b>{method}</b> والٹ ایڈریس درج کریں:\n<code>${LINE}</code>\n${$zap} <i>مثال:</i> <code>{example}</code>`,
     withdrawConfirm: `${$check} <b>نکاسی کی درخواست جمع!</b>
@@ -2313,6 +2443,19 @@ ${$bank} طریقہ:  <b>{method}</b>
 ${$mailbox} پتہ:    <code>{address}</code>
 <code>${LINE}</code>
 ${$clock} <b>24 گھنٹے</b> میں ادائیگی ہوگی۔`,
+
+    withdrawApprovedMsg: `${$check} <b>نکاسی منظور ہوگئی!</b>
+<code>${SEP}</code>
+${$dollar} رقم: <b>$ {amount}</b>
+${$bank} طریقہ: <b>{method}</b>
+${$zap} آپ کی ادائیگی بھیج دی گئی ہے۔ شکریہ!`,
+
+    withdrawRejectedMsg: `${$cross} <b>نکاسی مسترد ہوگئی</b>
+<code>${SEP}</code>
+${$dollar} رقم: <b>$ {amount}</b>
+${$bank} طریقہ: <b>{method}</b>
+{note}
+${$wallet} رقم آپ کے بیلنس میں واپس کردی گئی ہے۔`,
 
     withdrawPending: `${$hourglass} پہلے سے ایک <b>زیر التواء نکاسی</b> ہے۔ انتظار کریں۔`,
     withdrawSelect:  "طریقہ چنیں:",
@@ -2568,6 +2711,10 @@ ${$phone} <b>ਭੁਗਤਾਨ ਵਿਧੀ ਚੁਣੋ:</b>`,
 ਕਢਵਾਈ ਲਈ ਘੱਟੋ ਘੱਟ <b>$ {minWd}</b> ਚਾਹੀਦਾ।
 ${$wallet} <i>ਬੈਲੇਂਸ:</i> <b>$ {balance}</b>`,
 
+    withdrawNeedOwnEarning: `${$cross} <b>ਹਾਲੇ ਕਢਵਾਈ ਸੰਭਵ ਨਹੀਂ</b>
+<code>${SEP}</code>
+ਤੁਹਾਡੇ ਬੈਲੇਂਸ ਦਾ ਬਹੁਤਾ ਹਿੱਸਾ ਰੈਫ਼ਰਲ ਤੋਂ ਹੈ। ਕੁਝ ਹੋਰ ਇਸ਼ਤਿਹਾਰ ਦੇਖੋ ਜਾਂ ਰੋਜ਼ਾਨਾ ਟਾਸਕ ਖੁਦ ਪੂਰੇ ਕਰੋ, ਫਿਰ ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ।`,
+
     withdrawAddress:  `${$note} ਆਪਣਾ <b>{method}</b> ਨੰਬਰ ਜਾਂ ਵੈਲੇਟ ਪਤਾ ਦਿਓ:`,
     enterWalletAddress: `${$note} ਆਪਣਾ <b>{method}</b> ਵੈਲੇਟ ਪਤਾ ਦਿਓ:\n<code>${LINE}</code>\n${$zap} <i>ਉਦਾਹਰਣ:</i> <code>{example}</code>`,
     withdrawConfirm: `${$check} <b>ਕਢਵਾਈ ਬੇਨਤੀ ਜਮ੍ਹਾਂ!</b>
@@ -2577,6 +2724,19 @@ ${$bank} ਵਿਧੀ:   <b>{method}</b>
 ${$mailbox} ਪਤਾ:    <code>{address}</code>
 <code>${LINE}</code>
 ${$clock} <b>24 ਘੰਟਿਆਂ</b> ਵਿੱਚ ਭੁਗਤਾਨ।`,
+
+    withdrawApprovedMsg: `${$check} <b>ਕਢਵਾਈ ਮਨਜ਼ੂਰ ਹੋਈ!</b>
+<code>${SEP}</code>
+${$dollar} ਰਕਮ: <b>$ {amount}</b>
+${$bank} ਵਿਧੀ: <b>{method}</b>
+${$zap} ਤੁਹਾਡਾ ਭੁਗਤਾਨ ਭੇਜ ਦਿੱਤਾ ਗਿਆ ਹੈ। ਧੰਨਵਾਦ!`,
+
+    withdrawRejectedMsg: `${$cross} <b>ਕਢਵਾਈ ਰੱਦ ਹੋਈ</b>
+<code>${SEP}</code>
+${$dollar} ਰਕਮ: <b>$ {amount}</b>
+${$bank} ਵਿਧੀ: <b>{method}</b>
+{note}
+${$wallet} ਰਕਮ ਤੁਹਾਡੇ ਬੈਲੇਂਸ ਵਿੱਚ ਵਾਪਸ ਕਰ ਦਿੱਤੀ ਗਈ ਹੈ।`,
 
     withdrawPending: `${$hourglass} ਪਹਿਲਾਂ ਹੀ <b>ਲੰਬਿਤ ਕਢਵਾਈ</b> ਹੈ। ਉਡੀਕ ਕਰੋ।`,
     withdrawSelect:  "ਵਿਧੀ ਚੁਣੋ:",
@@ -2833,6 +2993,10 @@ ${$phone} <b>Pilih metode pembayaran:</b>`,
 Butuh minimal <b>$ {minWd}</b> untuk menarik.
 ${$wallet} <i>Saldo Anda:</i> <b>$ {balance}</b>`,
 
+    withdrawNeedOwnEarning: `${$cross} <b>Penarikan Belum Diizinkan</b>
+<code>${SEP}</code>
+Sebagian besar saldo Anda berasal dari referral. Tonton beberapa iklan lagi atau selesaikan tugas harian sendiri, lalu coba lagi.`,
+
     withdrawAddress:  `${$note} Masukkan nomor <b>{method}</b> atau alamat dompet Anda:`,
     enterWalletAddress: `${$note} Masukkan alamat dompet <b>{method}</b> Anda:\n<code>${LINE}</code>\n${$zap} <i>Contoh:</i> <code>{example}</code>`,
     withdrawConfirm: `${$check} <b>Permintaan Penarikan Diajukan!</b>
@@ -2842,6 +3006,19 @@ ${$bank} Metode:  <b>{method}</b>
 ${$mailbox} Alamat:  <code>{address}</code>
 <code>${LINE}</code>
 ${$clock} Pembayaran dalam <b>24 jam</b>.`,
+
+    withdrawApprovedMsg: `${$check} <b>Penarikan Disetujui!</b>
+<code>${SEP}</code>
+${$dollar} Jumlah: <b>$ {amount}</b>
+${$bank} Metode: <b>{method}</b>
+${$zap} Pembayaran Anda telah dikirim. Terima kasih!`,
+
+    withdrawRejectedMsg: `${$cross} <b>Penarikan Ditolak</b>
+<code>${SEP}</code>
+${$dollar} Jumlah: <b>$ {amount}</b>
+${$bank} Metode: <b>{method}</b>
+{note}
+${$wallet} Jumlah telah dikembalikan ke saldo Anda.`,
 
     withdrawPending: `${$hourglass} Sudah ada <b>permintaan penarikan tertunda</b>.`,
     withdrawSelect:  "Pilih metode:",
@@ -3098,6 +3275,10 @@ ${$phone} <b>Choisissez votre mode de paiement:</b>`,
 Il faut au moins <b>$ {minWd}</b> pour retirer.
 ${$wallet} <i>Votre solde:</i> <b>$ {balance}</b>`,
 
+    withdrawNeedOwnEarning: `${$cross} <b>Retrait Pas Encore Autorisé</b>
+<code>${SEP}</code>
+Une trop grande partie de votre solde provient des parrainages. Regardez encore quelques publicités ou complétez les tâches quotidiennes vous-même, puis réessayez.`,
+
     withdrawAddress:  `${$note} Entrez votre numéro <b>{method}</b> ou adresse de portefeuille:`,
     enterWalletAddress: `${$note} Entrez votre adresse <b>{method}</b>:\n<code>${LINE}</code>\n${$zap} <i>Exemple:</i> <code>{example}</code>`,
     withdrawConfirm: `${$check} <b>Demande de retrait soumise!</b>
@@ -3107,6 +3288,19 @@ ${$bank} Méthode:  <b>{method}</b>
 ${$mailbox} Adresse:  <code>{address}</code>
 <code>${LINE}</code>
 ${$clock} Paiement traité dans <b>24 heures</b>.`,
+
+    withdrawApprovedMsg: `${$check} <b>Retrait Approuvé!</b>
+<code>${SEP}</code>
+${$dollar} Montant: <b>$ {amount}</b>
+${$bank} Méthode: <b>{method}</b>
+${$zap} Votre paiement a été envoyé. Merci!`,
+
+    withdrawRejectedMsg: `${$cross} <b>Retrait Rejeté</b>
+<code>${SEP}</code>
+${$dollar} Montant: <b>$ {amount}</b>
+${$bank} Méthode: <b>{method}</b>
+{note}
+${$wallet} Le montant a été remboursé sur votre solde.`,
 
     withdrawPending: `${$hourglass} Vous avez déjà un <b>retrait en attente</b>. Patientez.`,
     withdrawSelect:  "Choisissez la méthode:",
@@ -3363,6 +3557,10 @@ ${$phone} <b>Selecciona método de pago:</b>`,
 Necesitas al menos <b>$ {minWd}</b> para retirar.
 ${$wallet} <i>Tu saldo:</i> <b>$ {balance}</b>`,
 
+    withdrawNeedOwnEarning: `${$cross} <b>Retiro Aún No Permitido</b>
+<code>${SEP}</code>
+Demasiada parte de tu saldo proviene de referidos. Mira algunos anuncios más o completa las tareas diarias tú mismo, luego intenta de nuevo.`,
+
     withdrawAddress:  `${$note} Ingresa tu número de <b>{method}</b> o dirección de billetera:`,
     enterWalletAddress: `${$note} Ingresa tu dirección de <b>{method}</b>:\n<code>${LINE}</code>\n${$zap} <i>Ejemplo:</i> <code>{example}</code>`,
     withdrawConfirm: `${$check} <b>¡Solicitud de retiro enviada!</b>
@@ -3372,6 +3570,19 @@ ${$bank} Método:   <b>{method}</b>
 ${$mailbox} Dirección: <code>{address}</code>
 <code>${LINE}</code>
 ${$clock} Pago procesado en <b>24 horas</b>.`,
+
+    withdrawApprovedMsg: `${$check} <b>¡Retiro Aprobado!</b>
+<code>${SEP}</code>
+${$dollar} Monto: <b>$ {amount}</b>
+${$bank} Método: <b>{method}</b>
+${$zap} Tu pago ha sido enviado. ¡Gracias!`,
+
+    withdrawRejectedMsg: `${$cross} <b>Retiro Rechazado</b>
+<code>${SEP}</code>
+${$dollar} Monto: <b>$ {amount}</b>
+${$bank} Método: <b>{method}</b>
+{note}
+${$wallet} El monto ha sido reembolsado a tu saldo.`,
 
     withdrawPending: `${$hourglass} Ya tienes un <b>retiro pendiente</b>. Por favor espera.`,
     withdrawSelect:  "Selecciona el método:",
@@ -3628,6 +3839,10 @@ ${$phone} <b>Selecione método de pagamento:</b>`,
 Precisa de pelo menos <b>$ {minWd}</b> para sacar.
 ${$wallet} <i>Seu saldo:</i> <b>$ {balance}</b>`,
 
+    withdrawNeedOwnEarning: `${$cross} <b>Saque Ainda Não Permitido</b>
+<code>${SEP}</code>
+Uma parte grande do seu saldo vem de indicações. Assista mais alguns anúncios ou complete as tarefas diárias você mesmo, depois tente novamente.`,
+
     withdrawAddress:  `${$note} Digite seu número <b>{method}</b> ou endereço de carteira:`,
     enterWalletAddress: `${$note} Digite seu endereço <b>{method}</b>:\n<code>${LINE}</code>\n${$zap} <i>Exemplo:</i> <code>{example}</code>`,
     withdrawConfirm: `${$check} <b>Solicitação de saque enviada!</b>
@@ -3637,6 +3852,19 @@ ${$bank} Método:   <b>{method}</b>
 ${$mailbox} Endereço: <code>{address}</code>
 <code>${LINE}</code>
 ${$clock} Pagamento processado em <b>24 horas</b>.`,
+
+    withdrawApprovedMsg: `${$check} <b>Saque Aprovado!</b>
+<code>${SEP}</code>
+${$dollar} Valor: <b>$ {amount}</b>
+${$bank} Método: <b>{method}</b>
+${$zap} Seu pagamento foi enviado. Obrigado!`,
+
+    withdrawRejectedMsg: `${$cross} <b>Saque Rejeitado</b>
+<code>${SEP}</code>
+${$dollar} Valor: <b>$ {amount}</b>
+${$bank} Método: <b>{method}</b>
+{note}
+${$wallet} O valor foi devolvido ao seu saldo.`,
 
     withdrawPending: `${$hourglass} Você já tem um <b>saque pendente</b>. Aguarde o processamento.`,
     withdrawSelect:  "Selecione o método:",

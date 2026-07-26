@@ -20,4 +20,9 @@ export const DEFAULT_SETTINGS: Record<string, { value: string; description: stri
   ad_min_seconds:     { value: "10",     description: "Minimum seconds between ad_start and ad_complete" },
   warn_limit:         { value: "3",      description: "Number of warnings before auto-ban" },
   cheat_warn:         { value: "1",      description: "Issue warning on cheat attempt (1=yes, 0=no)" },
+
+  // ─── Referral commission + anti-fraud ──────────────────────────────────────
+  referral_commission_pct:        { value: "10",   description: "% of a referred user's ad/task earnings paid to the referrer, for life" },
+  referral_commission_daily_cap:  { value: "1.00", description: "Max $ a referrer can earn from commissions in a single day (per referrer)" },
+  min_own_earning_ratio:          { value: "0.40", description: "Min fraction (0-1) of a user's lifetime earnings that must come from their own activity (not referrals) to be allowed to withdraw" },
 };

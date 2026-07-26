@@ -12,6 +12,8 @@ import {
   ListWithdrawalsQueryParams, UpdateWithdrawalParams, UpdateWithdrawalBody,
   SendBroadcastBody,
 } from "@workspace/api-zod";
+import { tr_ } from "../bot/languages.js";
+import { sendTelegramMessage } from "../lib/notify.js";
 
 const router = Router();
 
@@ -224,6 +226,21 @@ router.patch("/withdrawals/:withdrawalId", async (req, res) => {
     .where(eq(withdrawalsTable.id, withdrawalId))
     .returning();
 
+  // Notify the user in their own language — best-effort, never blocks the response.
+  if ((status === "approved" || status === "rejected") && existing.status === "pending") {
+    const [user] = await db.select({ telegramId: usersTable.telegramId, language: usersTable.language })
+      .from(usersTable).where(eq(usersTable.id, existing.userId));
+    if (user) {
+      const key = status === "approved" ? "withdrawApprovedMsg" : "withdrawRejectedMsg";
+      const text = tr_(user.language, key, {
+        amount: parseFloat(String(existing.amount)).toFixed(4),
+        method: existing.method,
+        note: note ? `${"\u{1F4DD}"} ${note}` : "",
+      });
+      sendTelegramMessage(user.telegramId, text).catch(() => {});
+    }
+  }
+
   res.json({
     ...updated!,
     amount: parseFloat(String(updated!.amount)),
@@ -254,16 +271,8 @@ router.post("/broadcast", async (req, res) => {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (token) {
     for (const user of users) {
-      try {
-        await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ chat_id: user.telegramId, text: message, parse_mode: "HTML" }),
-        });
-        sent++;
-      } catch {
-        failed++;
-      }
+      const ok = await sendTelegramMessage(user.telegramId, message);
+      if (ok) sent++; else failed++;
       // Small delay to avoid rate limit
       await new Promise(r => setTimeout(r, 50));
     }

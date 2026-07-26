@@ -13,6 +13,7 @@ import {
   updateUserWallet, updateUserName,
   getTopEarners, getBotStats,
   getEffectiveAdsLimit, getNextMilestone, REFERRAL_MILESTONES,
+  sendInactivityReminders,
 } from "./db.js";
 import { tr_, LANGUAGES, bar, escHtml, type Lang } from "./languages.js";
 
@@ -920,6 +921,10 @@ export async function startBot(expressApp?: Express) {
           await editPanel(ctx, tr_(lang, "withdrawPending"), {
             reply_markup: walletOverviewKeyboard(lang),
           });
+        } else if (result.reason === "needMoreOwnEarning") {
+          await editPanel(ctx, tr_(lang, "withdrawNeedOwnEarning"), {
+            reply_markup: walletOverviewKeyboard(lang),
+          });
         } else {
           await editPanel(ctx, tr_(lang, "withdrawLow", {
             balance: balance.toFixed(2),
@@ -1497,6 +1502,10 @@ export async function startBot(expressApp?: Express) {
         await editPanel(ctx, tr_(lang, "withdrawPending"), {
           reply_markup: walletOverviewKeyboard(lang),
         });
+      } else if (result.reason === "needMoreOwnEarning") {
+        await editPanel(ctx, tr_(lang, "withdrawNeedOwnEarning"), {
+          reply_markup: walletOverviewKeyboard(lang),
+        });
       } else {
         await editPanel(ctx, tr_(lang, "withdrawLow", {
           balance: balance.toFixed(2),
@@ -1745,6 +1754,17 @@ export async function startBot(expressApp?: Express) {
       onStart: (info) => logger.info({ username: info.username }, "Bot started (polling mode)"),
     }).catch((err) => logger.error({ err }, "Bot failed to start"));
   }
+
+  // ─── Background: 24h inactivity reminder ─────────────────────────────────
+  // Runs once at startup, then every hour. Each user is only ever messaged
+  // once per 24h window (guarded inside sendInactivityReminders itself).
+  const runReminders = () => {
+    sendInactivityReminders()
+      .then(({ sent }) => { if (sent > 0) logger.info({ sent }, "[reminders] inactivity notifications sent"); })
+      .catch((err) => logger.error({ err }, "[reminders] failed"));
+  };
+  setTimeout(runReminders, 60_000); // give the bot a minute to fully boot first
+  setInterval(runReminders, 60 * 60 * 1000); // then hourly
 
   return bot;
 }

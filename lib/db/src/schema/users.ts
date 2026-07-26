@@ -29,6 +29,17 @@ export const usersTable = pgTable("users", {
   bannedUntil: timestamp("banned_until"),        // if set and in the future, user is temporarily banned
   cheatCount: integer("cheat_count").notNull().default(0), // cheat attempts today (resets daily)
   cheatCountDate: date("cheat_count_date"),      // date the cheatCount belongs to
+
+  // ─── Earning source split (referral anti-fraud) ────────────────────────────
+  // Lifetime totals split by source. Withdrawals require a healthy share of
+  // `ownEarned` vs `referralEarned` so referral-only farming can't be cashed out.
+  ownEarned: numeric("own_earned", { precision: 10, scale: 4 }).notNull().default("0"),        // lifetime: ads + tasks + channels
+  referralEarned: numeric("referral_earned", { precision: 10, scale: 4 }).notNull().default("0"), // lifetime: signup bonus + commission
+  refCommissionToday: numeric("ref_commission_today", { precision: 10, scale: 4 }).notNull().default("0"), // resets daily (see refCommissionDate)
+  refCommissionDate: date("ref_commission_date"), // date refCommissionToday belongs to
+
+  // ─── Notifications ──────────────────────────────────────────────────────────
+  lastReminderSentAt: timestamp("last_reminder_sent_at"), // last "come back" inactivity reminder sent
 });
 
 export const insertUserSchema = createInsertSchema(usersTable).omit({ id: true, createdAt: true });

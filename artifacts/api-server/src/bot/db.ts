@@ -7,6 +7,8 @@ import {
   DEFAULT_SETTINGS,
 } from "@workspace/db";
 import type { Lang } from "./languages.js";
+import { tr_ } from "./languages.js";
+import { sendTelegramMessage } from "../lib/notify.js";
 
 export function todayStr(): string {
   return new Date().toISOString().split("T")[0]!;
@@ -89,7 +91,39 @@ export async function applyReferralMilestones(
   return { unlocked: newlyReached };
 }
 
-/** Base daily ads limit + any still-active referral-milestone bonus. */
+/**
+ * Finds users inactive for 24h+ who haven't already been reminded in the last
+ * 24h, sends a "come back" notification, and stamps lastReminderSentAt so we
+ * never spam the same user more than once a day. Meant to be called from a
+ * periodic job (see startBot's setInterval) — safe to call repeatedly.
+ */
+export async function sendInactivityReminders(): Promise<{ sent: number }> {
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+  const candidates = await db.select({
+    id: usersTable.id,
+    telegramId: usersTable.telegramId,
+    language: usersTable.language,
+  }).from(usersTable).where(
+    and(
+      eq(usersTable.isBanned, false),
+      sql`${usersTable.lastActive} < ${cutoff}`,
+      sql`(${usersTable.lastReminderSentAt} IS NULL OR ${usersTable.lastReminderSentAt} < ${cutoff})`,
+    ),
+  );
+
+  let sent = 0;
+  for (const u of candidates) {
+    const ok = await sendTelegramMessage(u.telegramId, tr_(u.language as Lang, "inactiveReminderMsg"));
+    await db.update(usersTable).set({ lastReminderSentAt: new Date() }).where(eq(usersTable.id, u.id));
+    if (ok) sent++;
+    // Small delay to stay well under Telegram's rate limits on large user bases.
+    await new Promise(r => setTimeout(r, 50));
+  }
+  return { sent };
+}
+
+
 export async function getEffectiveAdsLimit(userId: number): Promise<{ base: number; bonus: number; total: number; bonusExpiresAt: Date | null }> {
   const base = await getNumSetting("max_ads_per_day", 25);
   const [user] = await db.select({
@@ -105,6 +139,107 @@ export async function getEffectiveAdsLimit(userId: number): Promise<{ base: numb
 /** Next unreached milestone tier for a given referral count, if any. */
 export function getNextMilestone(referralCount: number): ReferralMilestone | undefined {
   return REFERRAL_MILESTONES.find(t => t.referrals > referralCount);
+}
+
+/**
+ * Central place to credit a user's OWN earnings (ad watch, daily bonus, channel
+ * join — anything that isn't itself a referral payout). Besides crediting the
+ * user, this fans out to their referrer (if any):
+ *
+ *  - First time ever: pays the one-time signup bonus + counts them toward
+ *    milestones + completes the referrer's daily "invite a friend" task.
+ *    (Gated on real activity so fake/empty signups can't be farmed.)
+ *  - Every time after: pays the referrer a lifetime % commission on this
+ *    earning, capped per referrer per day (anti-abuse).
+ *
+ * Never call this with referral-commission money itself — commissions do not
+ * themselves generate further commissions.
+ */
+export async function creditOwnEarning(userId: number, amount: number, source: string): Promise<void> {
+  if (amount <= 0) return;
+
+  await db.update(usersTable)
+    .set({
+      balance: sql`balance + ${amount}`,
+      totalEarned: sql`total_earned + ${amount}`,
+      ownEarned: sql`own_earned + ${amount}`,
+    })
+    .where(eq(usersTable.id, userId));
+
+  const [refRow] = await db.select().from(referralsTable)
+    .where(eq(referralsTable.referredId, userId)).limit(1);
+  if (!refRow) return;
+
+  const [referrer] = await db.select().from(usersTable).where(eq(usersTable.id, refRow.referrerId)).limit(1);
+  if (!referrer || referrer.isBanned) return;
+
+  if (!refRow.signupBonusPaid) {
+    // ── First real activity: pay the one-time signup bonus, now that it's earned ──
+    const refReward = await getNumSetting("referral_reward", 0.05);
+    await db.update(usersTable)
+      .set({
+        balance: sql`balance + ${refReward}`,
+        totalEarned: sql`total_earned + ${refReward}`,
+        referralEarned: sql`referral_earned + ${refReward}`,
+      })
+      .where(eq(usersTable.id, refRow.referrerId));
+    await db.update(referralsTable)
+      .set({ signupBonusPaid: true, firstActivityDone: true, amount: String(refReward) })
+      .where(eq(referralsTable.id, refRow.id));
+
+    const [{ count: qualifiedCount }] = await db.select({ count: count() })
+      .from(referralsTable)
+      .where(and(eq(referralsTable.referrerId, refRow.referrerId), eq(referralsTable.firstActivityDone, true)));
+
+    sendTelegramMessage(
+      referrer.telegramId,
+      tr_(referrer.language as Lang, "referralQualifiedMsg", { amount: refReward.toFixed(4) }),
+    ).catch(() => {});
+
+    const { unlocked } = await applyReferralMilestones(refRow.referrerId, qualifiedCount);
+    if (unlocked) {
+      sendTelegramMessage(
+        referrer.telegramId,
+        tr_(referrer.language as Lang, "milestoneUnlockedMsg", {
+          referrals: unlocked.referrals,
+          bonusAds: unlocked.bonusAds,
+          days: unlocked.days,
+          cashBonus: unlocked.cashBonus.toFixed(2),
+        }),
+      ).catch(() => {});
+    }
+
+    const today = todayStr();
+    const task = await db.select().from(dailyTasksTable)
+      .where(and(eq(dailyTasksTable.userId, refRow.referrerId), eq(dailyTasksTable.taskDate, today))).limit(1);
+    if (task[0] && !task[0].referralDone) {
+      await db.update(dailyTasksTable).set({ referralDone: true }).where(eq(dailyTasksTable.id, task[0].id));
+    }
+    await logActivity("referral", `Referral qualified (first activity) +$${refReward.toFixed(2)} for user #${refRow.referrerId}`, refRow.referrerId);
+    return;
+  }
+
+  // ── Ongoing lifetime commission, capped per referrer per day ──
+  const pct = await getNumSetting("referral_commission_pct", 10);
+  if (pct <= 0) return;
+  const dailyCap = await getNumSetting("referral_commission_daily_cap", 1.00);
+  const today = todayStr();
+  const sameDay = referrer.refCommissionDate === today;
+  const earnedSoFar = sameDay ? Number(referrer.refCommissionToday) : 0;
+  const remainingCap = Math.max(dailyCap - earnedSoFar, 0);
+  const commission = Math.min(Math.round(amount * (pct / 100) * 10000) / 10000, remainingCap);
+  if (commission <= 0) return;
+
+  await db.update(usersTable)
+    .set({
+      balance: sql`balance + ${commission}`,
+      totalEarned: sql`total_earned + ${commission}`,
+      referralEarned: sql`referral_earned + ${commission}`,
+      refCommissionToday: sameDay ? sql`ref_commission_today + ${commission}` : String(commission),
+      refCommissionDate: today,
+    })
+    .where(eq(usersTable.id, refRow.referrerId));
+  await logActivity("referral_commission", `Commission $${commission.toFixed(4)} from referred user #${userId} (${source})`, refRow.referrerId);
 }
 
 // ─── Settings ────────────────────────────────────────────────────────────────
@@ -179,9 +314,7 @@ export async function recordChannelJoin(userId: number, channelId: number) {
   }
 
   // Credit reward
-  await db.update(usersTable)
-    .set({ balance: sql`balance + ${reward}`, totalEarned: sql`total_earned + ${reward}` })
-    .where(eq(usersTable.id, userId));
+  await creditOwnEarning(userId, reward, "channel_join");
 
   // Mark daily task channel done
   const today = todayStr();
@@ -239,26 +372,16 @@ export async function getOrCreateUser(
 
   if (!newUser) throw new Error("Failed to create user");
 
-  // Referral bonus
+  // Referral: just record the link. The signup bonus, milestone credit, and the
+  // referrer's daily "invite a friend" task are only granted once this new user
+  // does real activity (first ad/task/channel earning) — see creditOwnEarning().
+  // This closes the "sign up fake accounts to farm referral bonus" hole.
   if (referrerId) {
-    const refReward = await getNumSetting("referral_reward", 0.05);
-    await db.update(usersTable)
-      .set({ balance: sql`balance + ${refReward}`, totalEarned: sql`total_earned + ${refReward}` })
-      .where(eq(usersTable.id, referrerId));
-    await db.insert(referralsTable).values({ referrerId, referredId: newUser.id, amount: String(refReward) });
-
-    // Check/apply referral milestone tiers (Upgrade Daily Limit)
-    const [{ count: refCount }] = await db.select({ count: count() }).from(referralsTable).where(eq(referralsTable.referrerId, referrerId));
-    await applyReferralMilestones(referrerId, refCount);
-
-    // Referrer daily task
-    const today = todayStr();
-    const task = await db.select().from(dailyTasksTable)
-      .where(and(eq(dailyTasksTable.userId, referrerId), eq(dailyTasksTable.taskDate, today))).limit(1);
-    if (task[0] && !task[0].referralDone) {
-      await db.update(dailyTasksTable).set({ referralDone: true }).where(eq(dailyTasksTable.id, task[0].id));
-    }
-    await logActivity("referral", `New referral +$${refReward.toFixed(2)} for user #${referrerId}`, referrerId);
+    await db.insert(referralsTable).values({
+      referrerId, referredId: newUser.id, amount: "0",
+      firstActivityDone: false, signupBonusPaid: false,
+    });
+    await logActivity("join", `Referred user joined (bonus pending activity): ${firstName}`, newUser.id);
   }
 
   await logActivity("join", `New user joined: ${firstName}`, newUser.id);
@@ -391,9 +514,7 @@ export async function completeAdWatch(userId: number, token: string): Promise<{ 
     .set({ count: newCount, todayEarned: String(newEarned), pendingAdStart: null, pendingAdToken: null, lastWatchedAt: new Date() })
     .where(eq(adsWatchedTable.id, row.id));
 
-  await db.update(usersTable)
-    .set({ balance: sql`balance + ${adEarn}`, totalEarned: sql`total_earned + ${adEarn}` })
-    .where(eq(usersTable.id, userId));
+  await creditOwnEarning(userId, adEarn, "ad_watch");
 
   // Check ads task threshold
   const adsThreshold = await getNumSetting("ads_task_threshold", 5);
@@ -449,9 +570,7 @@ export async function claimDailyBonus(userId: number): Promise<{ ok: boolean; re
 
   const bonus = await getNumSetting("daily_bonus", 0.20);
   await db.update(dailyTasksTable).set({ bonusClaimed: true, claimedAt: new Date() }).where(eq(dailyTasksTable.id, task[0].id));
-  await db.update(usersTable)
-    .set({ balance: sql`balance + ${bonus}`, totalEarned: sql`total_earned + ${bonus}` })
-    .where(eq(usersTable.id, userId));
+  await creditOwnEarning(userId, bonus, "daily_bonus");
 
   const updUser = await db.select({ balance: usersTable.balance }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
   await logActivity("bonus", `Daily bonus $${bonus.toFixed(2)} claimed`, userId);
@@ -508,7 +627,25 @@ export async function createWithdrawal(userId: number, amount: number, method: s
   const user = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
   if (!user[0] || Number(user[0].balance) < amount) return { ok: false, reason: "lowBalance" };
 
-  await db.update(usersTable).set({ balance: sql`balance - ${amount}` }).where(eq(usersTable.id, userId));
+  // ── Anti-fraud: a healthy share of lifetime earnings must be the user's own
+  // activity (ads/tasks/channels), not just referral bonuses/commissions. Blocks
+  // "invite fake accounts, cash out pure referral money" abuse.
+  const ownEarned = Number(user[0].ownEarned);
+  const referralEarned = Number(user[0].referralEarned);
+  const lifetimeTotal = ownEarned + referralEarned;
+  const minOwnRatio = await getNumSetting("min_own_earning_ratio", 0.40);
+  if (lifetimeTotal > 0 && ownEarned < minOwnRatio * lifetimeTotal) {
+    return { ok: false, reason: "needMoreOwnEarning" };
+  }
+
+  // ── Atomic, race-safe deduction: the WHERE balance >= amount + checking the
+  // returned row closes the check-then-update gap (no double-withdraw on rapid
+  // double-taps or concurrent requests).
+  const deducted = await db.update(usersTable)
+    .set({ balance: sql`balance - ${amount}` })
+    .where(and(eq(usersTable.id, userId), sql`balance >= ${amount}`))
+    .returning({ id: usersTable.id });
+  if (!deducted[0]) return { ok: false, reason: "lowBalance" };
 
   const [wd] = await db.insert(withdrawalsTable).values({
     userId, amount: String(amount), method, address, status: "pending",

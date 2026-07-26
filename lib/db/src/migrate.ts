@@ -34,7 +34,12 @@ export async function autoMigrate(): Promise<void> {
         claimed_milestones   TEXT NOT NULL DEFAULT '',
         banned_until         TIMESTAMP,
         cheat_count          INTEGER NOT NULL DEFAULT 0,
-        cheat_count_date     DATE
+        cheat_count_date     DATE,
+        own_earned           NUMERIC(10,4) NOT NULL DEFAULT 0,
+        referral_earned      NUMERIC(10,4) NOT NULL DEFAULT 0,
+        ref_commission_today NUMERIC(10,4) NOT NULL DEFAULT 0,
+        ref_commission_date  DATE,
+        last_reminder_sent_at TIMESTAMP
       );
 
       -- activity_log
@@ -106,11 +111,13 @@ export async function autoMigrate(): Promise<void> {
 
       -- referrals
       CREATE TABLE IF NOT EXISTS referrals (
-        id          SERIAL PRIMARY KEY,
-        referrer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        referred_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        amount      NUMERIC(10,4) NOT NULL DEFAULT 0.05,
-        created_at  TIMESTAMP NOT NULL DEFAULT NOW()
+        id                  SERIAL PRIMARY KEY,
+        referrer_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        referred_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        amount              NUMERIC(10,4) NOT NULL DEFAULT 0.05,
+        created_at          TIMESTAMP NOT NULL DEFAULT NOW(),
+        first_activity_done BOOLEAN NOT NULL DEFAULT FALSE,
+        signup_bonus_paid   BOOLEAN NOT NULL DEFAULT FALSE
       );
 
       -- user_warnings
@@ -157,6 +164,14 @@ export async function autoMigrate(): Promise<void> {
       `ALTER TABLE users ADD COLUMN IF NOT EXISTS banned_until         TIMESTAMP`,
       `ALTER TABLE users ADD COLUMN IF NOT EXISTS cheat_count          INTEGER NOT NULL DEFAULT 0`,
       `ALTER TABLE users ADD COLUMN IF NOT EXISTS cheat_count_date     DATE`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS own_earned           NUMERIC(10,4) NOT NULL DEFAULT 0`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_earned      NUMERIC(10,4) NOT NULL DEFAULT 0`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS ref_commission_today NUMERIC(10,4) NOT NULL DEFAULT 0`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS ref_commission_date  DATE`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS last_reminder_sent_at TIMESTAMP`,
+      // referrals
+      `ALTER TABLE referrals ADD COLUMN IF NOT EXISTS first_activity_done BOOLEAN NOT NULL DEFAULT FALSE`,
+      `ALTER TABLE referrals ADD COLUMN IF NOT EXISTS signup_bonus_paid   BOOLEAN NOT NULL DEFAULT FALSE`,
       // ads_watched
       `ALTER TABLE ads_watched ADD COLUMN IF NOT EXISTS pending_ad_start TIMESTAMP`,
       `ALTER TABLE ads_watched ADD COLUMN IF NOT EXISTS pending_ad_token TEXT`,
