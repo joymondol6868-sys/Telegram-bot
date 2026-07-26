@@ -581,8 +581,12 @@ export async function claimDailyBonus(userId: number): Promise<{ ok: boolean; re
 
 export async function getReferralStats(userId: number) {
   const rows = await db.select().from(referralsTable).where(eq(referralsTable.referrerId, userId));
-  const total = rows.reduce((s, r) => s + Number(r.amount), 0);
-  return { count: rows.length, earned: total };
+  // referralsTable.amount only ever holds the one-time signup bonus; ongoing
+  // lifetime commission is credited straight to users.referralEarned, so that's
+  // the only place that reflects a referrer's true total referral income.
+  const [user] = await db.select({ referralEarned: usersTable.referralEarned })
+    .from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  return { count: rows.length, earned: Number(user?.referralEarned ?? 0) };
 }
 
 // ─── Withdrawals ──────────────────────────────────────────────────────────────
@@ -614,6 +618,39 @@ export async function getUserWithdrawalHistory(userId: number, limit = 10) {
     .where(eq(withdrawalsTable.userId, userId))
     .orderBy(desc(withdrawalsTable.createdAt))
     .limit(limit);
+}
+
+/**
+ * Read-only eligibility check — same rules as createWithdrawal's checks, but
+ * callable up front (before the user picks a wallet method and types an
+ * address) so the bot can explain *why* with real numbers instead of letting
+ * them fill out the whole form only to be rejected at the end.
+ */
+export async function getWithdrawalReadiness(userId: number): Promise<{
+  eligible: boolean;
+  reason?: "lowBalance" | "needMoreOwnEarning";
+  balance: number;
+  minWd: number;
+  ownEarned: number;
+  referralEarned: number;
+  minOwnRatioPct: number;
+}> {
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  const balance = Number(user?.balance ?? 0);
+  const minWd = await getNumSetting("min_withdrawal", 0.50);
+  const ownEarned = Number(user?.ownEarned ?? 0);
+  const referralEarned = Number(user?.referralEarned ?? 0);
+  const minOwnRatio = await getNumSetting("min_own_earning_ratio", 0.40);
+  const minOwnRatioPct = Math.round(minOwnRatio * 100);
+  const lifetimeTotal = ownEarned + referralEarned;
+
+  if (balance < minWd) {
+    return { eligible: false, reason: "lowBalance", balance, minWd, ownEarned, referralEarned, minOwnRatioPct };
+  }
+  if (lifetimeTotal > 0 && ownEarned < minOwnRatio * lifetimeTotal) {
+    return { eligible: false, reason: "needMoreOwnEarning", balance, minWd, ownEarned, referralEarned, minOwnRatioPct };
+  }
+  return { eligible: true, balance, minWd, ownEarned, referralEarned, minOwnRatioPct };
 }
 
 export async function createWithdrawal(userId: number, amount: number, method: string, address: string) {

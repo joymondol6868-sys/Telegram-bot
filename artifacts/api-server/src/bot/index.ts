@@ -7,6 +7,7 @@ import {
   getTodayAds, startAdWatch, completeAdWatch,
   getOrCreateDailyTask, markTaskShare, claimDailyBonus,
   getReferralStats, createWithdrawal, getWalletStats, getUserWithdrawalHistory,
+  getWithdrawalReadiness,
   getActiveChannels, recordChannelJoin, getChannelJoin,
   getWarningCount,
   getNumSetting, seedSettings, saveUserPanelMsg,
@@ -467,19 +468,22 @@ export async function startBot(expressApp?: Express) {
   }
 
   async function handleWithdrawalPrompt(ctx: BotCtx, lang: Lang, dbUser: NonNullable<FullUser>) {
-    const balance = Number(dbUser.balance);
-    const minWd = await getNumSetting("min_withdrawal", 0.50);
-    if (balance < minWd) {
-      await editPanel(ctx, tr_(lang, "withdrawLow", {
-        balance: balance.toFixed(2),
-        minWd: minWd.toFixed(2),
+    const readiness = await getWithdrawalReadiness(dbUser.id);
+    if (!readiness.eligible) {
+      const key = readiness.reason === "needMoreOwnEarning" ? "withdrawNeedOwnEarning" : "withdrawLow";
+      await editPanel(ctx, tr_(lang, key, {
+        balance: readiness.balance.toFixed(2),
+        minWd: readiness.minWd.toFixed(2),
+        ownEarned: readiness.ownEarned.toFixed(2),
+        referralEarned: readiness.referralEarned.toFixed(2),
+        minOwnRatioPct: readiness.minOwnRatioPct,
       }), { reply_markup: walletOverviewKeyboard(lang) });
       return;
     }
     clearState(ctx);
     await editPanel(ctx, tr_(lang, "withdrawMsg", {
-      balance: balance.toFixed(2),
-      minWd: minWd.toFixed(2),
+      balance: readiness.balance.toFixed(2),
+      minWd: readiness.minWd.toFixed(2),
     }), { reply_markup: withdrawMethodInlineMenu(lang) });
   }
 
@@ -761,8 +765,9 @@ export async function startBot(expressApp?: Express) {
   }
 
   async function handleReferralPanel(ctx: BotCtx, lang: Lang, dbUser: NonNullable<FullUser>) {
-    const [refReward, stats] = await Promise.all([
+    const [refReward, commissionPct, stats] = await Promise.all([
       getNumSetting("referral_reward", 0.05),
+      getNumSetting("referral_commission_pct", 10),
       getReferralStats(dbUser.id),
     ]);
     const link = dbUser.referralCode ? getReferralLink(dbUser.referralCode) : "N/A";
@@ -774,7 +779,7 @@ export async function startBot(expressApp?: Express) {
       .add({ text: "🏠 " + tr_(lang, "mainMenuBtn").replace(/^🏠\s*/, ""), callback_data: "go_main", style: "danger" });
 
     await showPanel(ctx, tr_(lang, "referralMsg", {
-      refReward: refReward.toFixed(2), count: stats.count, earned: stats.earned.toFixed(2), link,
+      refReward: refReward.toFixed(2), commissionPct, count: stats.count, earned: stats.earned.toFixed(2), link,
     }), { reply_markup: inlineKbd });
   }
 

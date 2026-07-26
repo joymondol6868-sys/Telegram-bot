@@ -482,7 +482,7 @@ ${$cal} <i>Joined:</i>      <b>{joined}</b> <i>({days} days)</i>
 
     referralMsg: `${$people} <b>REFERRAL PROGRAM</b>
 <code>${SEP}</code>
-${$shine} Invite friends — earn <b>$ {refReward}</b> per person!
+${$shine} Invite friends — get <b>$ {refReward}</b> once they start earning, PLUS <b>{commissionPct}%</b> of their earnings for life!
 <code>${LINE}</code>
 ${$people} <i>Total Referrals:</i>  <b>{count}</b>
 ${$money} <i>Referral Earnings:</i> <b>$ {earned}</b>
@@ -490,7 +490,7 @@ ${$money} <i>Referral Earnings:</i> <b>$ {earned}</b>
 ${$link} <b>Your Referral Link:</b>
 <code>{link}</code>
 <code>${LINE}</code>
-${$share} <i>Share your link — earn instantly when friends join!</i>`,
+${$share} <i>The more active friends you bring, the more you earn — forever!</i>`,
 
     shareLink: "📨 Share Link",
 
@@ -535,7 +535,11 @@ ${$wallet} <i>Your Balance:</i> <b>$ {balance}</b>`,
 
     withdrawNeedOwnEarning: `${$cross} <b>Withdrawal Not Allowed Yet</b>
 <code>${SEP}</code>
-Too much of your balance comes from referrals. Watch a few more ads or complete daily tasks yourself, then try again.`,
+${$wallet} <i>Your Balance:</i> <b>$ {balance}</b>
+${$dollar} <i>Your Own Earnings:</i> <b>$ {ownEarned}</b>
+${$people} <i>Referral Earnings:</i> <b>$ {referralEarned}</b>
+<code>${LINE}</code>
+At least <b>{minOwnRatioPct}%</b> of your balance must come from your own activity (ads/tasks), not referrals. Watch a few more ads or complete daily tasks yourself, then try again.`,
 
     withdrawAddress:  `${$note} Enter your <b>{method}</b> number or wallet address:`,
     enterWalletAddress: `${$note} Enter your <b>{method}</b> wallet address:\n<code>${LINE}</code>\n${$zap} <i>Example:</i> <code>{example}</code>`,
@@ -860,7 +864,7 @@ ${$cal} <i>যোগদান:</i>           <b>{joined}</b> <i>({days} দি�
 
     referralMsg: `${$people} <b>রেফারেল প্রোগ্রাম</b>
 <code>${SEP}</code>
-${$shine} বন্ধু আনুন — প্রতিজনে <b>$ {refReward}</b> আয়!
+${$shine} বন্ধু আনুন — সে কামাই শুরু করলেই <b>$ {refReward}</b>, প্লাস তার আয়ের <b>{commissionPct}%</b> লাইফটাইম কমিশন!
 <code>${LINE}</code>
 ${$people} <i>মোট রেফারেল:</i>   <b>{count}</b>
 ${$money} <i>রেফারেল আয়:</i>    <b>$ {earned}</b>
@@ -868,7 +872,7 @@ ${$money} <i>রেফারেল আয়:</i>    <b>$ {earned}</b>
 ${$link} <b>আপনার রেফারেল লিংক:</b>
 <code>{link}</code>
 <code>${LINE}</code>
-${$share} <i>লিংক শেয়ার করুন — বন্ধু যোগ দিলেই তাৎক্ষণিক আয়!</i>`,
+${$share} <i>যত বেশি active বন্ধু আনবেন, তত বেশি আয় — চিরকাল!</i>`,
 
     shareLink: "📨 লিংক শেয়ার করুন",
 
@@ -913,7 +917,11 @@ ${$wallet} <i>আপনার ব্যালেন্স:</i> <b>$ {balance}</b
 
     withdrawNeedOwnEarning: `${$cross} <b>এখনো উইথড্র করা যাবে না</b>
 <code>${SEP}</code>
-আপনার ব্যালেন্সের বেশিরভাগ রেফারেল থেকে এসেছে। নিজে আরো কিছু Ads দেখুন বা Daily Task সম্পূর্ণ করুন, তারপর আবার চেষ্টা করুন।`,
+${$wallet} <i>আপনার ব্যালেন্স:</i> <b>$ {balance}</b>
+${$dollar} <i>নিজের আয়:</i> <b>$ {ownEarned}</b>
+${$people} <i>রেফারেল আয়:</i> <b>$ {referralEarned}</b>
+<code>${LINE}</code>
+ব্যালেন্সের অন্তত <b>{minOwnRatioPct}%</b> অবশ্যই নিজের Activity (Ads/Task) থেকে আসতে হবে, শুধু রেফারেল থেকে না। নিজে আরো কিছু Ads দেখুন বা Daily Task সম্পূর্ণ করুন, তারপর আবার চেষ্টা করুন।`,
 
     withdrawAddress:  `${$note} আপনার <b>{method}</b> নম্বর বা ওয়ালেট ঠিকানা দিন:`,
     enterWalletAddress: `${$note} আপনার <b>{method}</b> ওয়ালেট ঠিকানা দিন:\n<code>${LINE}</code>\n${$zap} <i>উদাহরণ:</i> <code>{example}</code>`,
@@ -1237,7 +1245,7 @@ ${$cal} <i>शामिल हुए:</i>      <b>{joined}</b> <i>({days} दि
 
     referralMsg: `${$people} <b>रेफ़रल प्रोग्राम</b>
 <code>${SEP}</code>
-${$shine} दोस्त लाएँ — प्रति व्यक्ति <b>$ {refReward}</b> कमाएँ!
+${$shine} दोस्त लाएँ — कमाई शुरू करते ही <b>$ {refReward}</b>, साथ ही उनकी कमाई का <b>{commissionPct}%</b> जीवनभर कमीशन!
 <code>${LINE}</code>
 ${$people} <i>कुल रेफ़रल:</i>   <b>{count}</b>
 ${$money} <i>रेफ़रल कमाई:</i>  <b>$ {earned}</b>
@@ -1245,7 +1253,7 @@ ${$money} <i>रेफ़रल कमाई:</i>  <b>$ {earned}</b>
 ${$link} <b>आपका रेफ़रल लिंक:</b>
 <code>{link}</code>
 <code>${LINE}</code>
-${$share} <i>लिंक शेयर करें — दोस्त जुड़े तो तुरंत कमाई!</i>`,
+${$share} <i>जितने ज़्यादा सक्रिय दोस्त लाएँगे, उतनी ज़्यादा कमाई — हमेशा के लिए!</i>`,
 
     shareLink: "📨 लिंक शेयर करें",
 
@@ -1530,7 +1538,7 @@ ${$cal} <i>تاريخ الانضمام:</i> <b>{joined}</b> <i>({days} يوما�
 
     referralMsg: `${$people} <b>برنامج الإحالة</b>
 <code>${SEP}</code>
-${$shine} ادعُ أصدقاء — اكسب <b>$ {refReward}</b> لكل شخص!
+${$shine} ادعُ أصدقاء — احصل على <b>$ {refReward}</b> بمجرد أن يبدأ صديقك بالكسب، بالإضافة إلى <b>{commissionPct}%</b> من أرباحه مدى الحياة!
 <code>${LINE}</code>
 ${$people} <i>إجمالي الإحالات:</i>  <b>{count}</b>
 ${$money} <i>أرباح الإحالة:</i>    <b>$ {earned}</b>
@@ -1538,7 +1546,7 @@ ${$money} <i>أرباح الإحالة:</i>    <b>$ {earned}</b>
 ${$link} <b>رابط إحالتك:</b>
 <code>{link}</code>
 <code>${LINE}</code>
-${$share} <i>شارك الرابط — اكسب فوراً عند انضمامهم!</i>`,
+${$share} <i>كلما جلبت أصدقاء أكثر نشاطًا، كسبت أكثر — إلى الأبد!</i>`,
 
     shareLink: "📨 مشاركة الرابط",
 
@@ -1813,7 +1821,7 @@ ${$cal} <i>Дата регистрации:</i> <b>{joined}</b> <i>({days} дн.
 
     referralMsg: `${$people} <b>РЕФЕРАЛЬНАЯ ПРОГРАММА</b>
 <code>${SEP}</code>
-${$shine} Приглашайте друзей — зарабатывайте <b>$ {refReward}</b> за каждого!
+${$shine} Приглашайте друзей — получите <b>$ {refReward}</b>, как только друг начнёт зарабатывать, плюс <b>{commissionPct}%</b> от его дохода пожизненно!
 <code>${LINE}</code>
 ${$people} <i>Всего рефералов:</i>   <b>{count}</b>
 ${$money} <i>Реферальный доход:</i> <b>$ {earned}</b>
@@ -1821,7 +1829,7 @@ ${$money} <i>Реферальный доход:</i> <b>$ {earned}</b>
 ${$link} <b>Ваша реферальная ссылка:</b>
 <code>{link}</code>
 <code>${LINE}</code>
-${$share} <i>Делитесь ссылкой — зарабатывайте мгновенно!</i>`,
+${$share} <i>Чем больше активных друзей приведёте — тем больше заработаете, навсегда!</i>`,
 
     shareLink: "📨 Поделиться ссылкой",
 
@@ -2096,7 +2104,7 @@ ${$cal} <i>Katıldı:</i>        <b>{joined}</b> <i>({days} gün)</i>
 
     referralMsg: `${$people} <b>REFERANS PROGRAMI</b>
 <code>${SEP}</code>
-${$shine} Arkadaş davet edin — kişi başı <b>$ {refReward}</b> kazanın!
+${$shine} Arkadaş davet edin — kazanmaya başladığında <b>$ {refReward}</b>, üstelik kazancının <b>{commissionPct}%</b>'i ömür boyu size!
 <code>${LINE}</code>
 ${$people} <i>Toplam Referans:</i>  <b>{count}</b>
 ${$money} <i>Referans Kazancı:</i> <b>$ {earned}</b>
@@ -2104,7 +2112,7 @@ ${$money} <i>Referans Kazancı:</i> <b>$ {earned}</b>
 ${$link} <b>Referans Linkiniz:</b>
 <code>{link}</code>
 <code>${LINE}</code>
-${$share} <i>Linki paylaşın — arkadaş katılınca anında kazanın!</i>`,
+${$share} <i>Ne kadar çok aktif arkadaş getirirsen, o kadar çok kazanırsın — sonsuza dek!</i>`,
 
     shareLink: "📨 Linki Paylaş",
 
@@ -2379,7 +2387,7 @@ ${$cal} <i>شامل ہوئے:</i>     <b>{joined}</b> <i>({days} دن)</i>
 
     referralMsg: `${$people} <b>ریفرل پروگرام</b>
 <code>${SEP}</code>
-${$shine} دوست بلائیں — فی شخص <b>$ {refReward}</b> کمائیں!
+${$shine} دوست بلائیں — ان کی کمائی شروع ہوتے ہی <b>$ {refReward}</b>، اور ان کی کمائی کا <b>{commissionPct}%</b> تاحیات کمیشن!
 <code>${LINE}</code>
 ${$people} <i>کل ریفرل:</i>    <b>{count}</b>
 ${$money} <i>ریفرل کمائی:</i> <b>$ {earned}</b>
@@ -2387,7 +2395,7 @@ ${$money} <i>ریفرل کمائی:</i> <b>$ {earned}</b>
 ${$link} <b>آپ کا ریفرل لنک:</b>
 <code>{link}</code>
 <code>${LINE}</code>
-${$share} <i>لنک شیئر کریں — دوست جڑے تو فوری کمائی!</i>`,
+${$share} <i>جتنے زیادہ active دوست لائیں گے، اتنی زیادہ کمائی — ہمیشہ کے لیے!</i>`,
 
     shareLink: "📨 لنک شیئر کریں",
 
@@ -2660,7 +2668,7 @@ ${$cal} <i>ਸ਼ਾਮਲ ਹੋਏ:</i>     <b>{joined}</b> <i>({days} ਦਿ�
 
     referralMsg: `${$people} <b>ਰੈਫਰਲ ਪ੍ਰੋਗਰਾਮ</b>
 <code>${SEP}</code>
-${$shine} ਦੋਸਤ ਲਿਆਓ — ਪ੍ਰਤੀ ਵਿਅਕਤੀ <b>$ {refReward}</b> ਕਮਾਓ!
+${$shine} ਦੋਸਤ ਲਿਆਓ — ਕਮਾਈ ਸ਼ੁਰੂ ਕਰਦੇ ਹੀ <b>$ {refReward}</b>, ਨਾਲ ਹੀ ਉਹਨਾਂ ਦੀ ਕਮਾਈ ਦਾ <b>{commissionPct}%</b> ਜੀਵਨ ਭਰ ਕਮਿਸ਼ਨ!
 <code>${LINE}</code>
 ${$people} <i>ਕੁੱਲ ਰੈਫਰਲ:</i>   <b>{count}</b>
 ${$money} <i>ਰੈਫਰਲ ਕਮਾਈ:</i> <b>$ {earned}</b>
@@ -2668,7 +2676,7 @@ ${$money} <i>ਰੈਫਰਲ ਕਮਾਈ:</i> <b>$ {earned}</b>
 ${$link} <b>ਤੁਹਾਡਾ ਰੈਫਰਲ ਲਿੰਕ:</b>
 <code>{link}</code>
 <code>${LINE}</code>
-${$share} <i>ਲਿੰਕ ਸ਼ੇਅਰ ਕਰੋ — ਤੁਰੰਤ ਕਮਾਈ!</i>`,
+${$share} <i>ਜਿੰਨੇ ਜ਼ਿਆਦਾ ਐਕਟਿਵ ਦੋਸਤ ਲਿਆਓਗੇ, ਓਨੀ ਹੀ ਜ਼ਿਆਦਾ ਕਮਾਈ — ਹਮੇਸ਼ਾ ਲਈ!</i>`,
 
     shareLink: "📨 ਲਿੰਕ ਸ਼ੇਅਰ ਕਰੋ",
 
@@ -2942,7 +2950,7 @@ ${$cal} <i>Bergabung:</i>      <b>{joined}</b> <i>({days} hari)</i>
 
     referralMsg: `${$people} <b>PROGRAM REFERRAL</b>
 <code>${SEP}</code>
-${$shine} Ajak teman — dapatkan <b>$ {refReward}</b> per orang!
+${$shine} Ajak teman — dapatkan <b>$ {refReward}</b> begitu mereka mulai menghasilkan, PLUS <b>{commissionPct}%</b> dari penghasilan mereka seumur hidup!
 <code>${LINE}</code>
 ${$people} <i>Total Referral:</i>   <b>{count}</b>
 ${$money} <i>Penghasilan Ref:</i>  <b>$ {earned}</b>
@@ -2950,7 +2958,7 @@ ${$money} <i>Penghasilan Ref:</i>  <b>$ {earned}</b>
 ${$link} <b>Link Referral Anda:</b>
 <code>{link}</code>
 <code>${LINE}</code>
-${$share} <i>Bagikan link — dapatkan penghasilan instan!</i>`,
+${$share} <i>Semakin banyak teman aktif yang Anda bawa, semakin banyak penghasilan Anda — selamanya!</i>`,
 
     shareLink: "📨 Bagikan Link",
 
@@ -3224,7 +3232,7 @@ ${$cal} <i>Inscrit le:</i>       <b>{joined}</b> <i>({days} jours)</i>
 
     referralMsg: `${$people} <b>PROGRAMME DE PARRAINAGE</b>
 <code>${SEP}</code>
-${$shine} Invitez des amis — gagnez <b>$ {refReward}</b> par personne!
+${$shine} Invitez des amis — obtenez <b>$ {refReward}</b> dès qu'ils commencent à gagner, PLUS <b>{commissionPct}%</b> de leurs gains à vie!
 <code>${LINE}</code>
 ${$people} <i>Total parrainages:</i>  <b>{count}</b>
 ${$money} <i>Gains parrainage:</i>   <b>$ {earned}</b>
@@ -3232,7 +3240,7 @@ ${$money} <i>Gains parrainage:</i>   <b>$ {earned}</b>
 ${$link} <b>Votre lien de parrainage:</b>
 <code>{link}</code>
 <code>${LINE}</code>
-${$share} <i>Partagez le lien — gagnez instantanément!</i>`,
+${$share} <i>Plus vous amenez d'amis actifs, plus vous gagnez — pour toujours!</i>`,
 
     shareLink: "📨 Partager le lien",
 
@@ -3506,7 +3514,7 @@ ${$cal} <i>Registrado:</i>     <b>{joined}</b> <i>({days} días)</i>
 
     referralMsg: `${$people} <b>PROGRAMA DE REFERIDOS</b>
 <code>${SEP}</code>
-${$shine} Invita amigos — gana <b>$ {refReward}</b> por persona!
+${$shine} Invita amigos — obtén <b>$ {refReward}</b> en cuanto empiecen a ganar, ¡MÁS <b>{commissionPct}%</b> de sus ganancias de por vida!
 <code>${LINE}</code>
 ${$people} <i>Total referidos:</i>  <b>{count}</b>
 ${$money} <i>Ganancias ref:</i>    <b>$ {earned}</b>
@@ -3514,7 +3522,7 @@ ${$money} <i>Ganancias ref:</i>    <b>$ {earned}</b>
 ${$link} <b>Tu enlace de referido:</b>
 <code>{link}</code>
 <code>${LINE}</code>
-${$share} <i>¡Comparte el enlace — gana al instante!</i>`,
+${$share} <i>Cuantos más amigos activos traigas, más ganas — para siempre!</i>`,
 
     shareLink: "📨 Compartir Enlace",
 
@@ -3788,7 +3796,7 @@ ${$cal} <i>Registrado:</i>    <b>{joined}</b> <i>({days} dias)</i>
 
     referralMsg: `${$people} <b>PROGRAMA DE INDICAÇÕES</b>
 <code>${SEP}</code>
-${$shine} Indique amigos — ganhe <b>$ {refReward}</b> por pessoa!
+${$shine} Indique amigos — ganhe <b>$ {refReward}</b> assim que começarem a ganhar, MAIS <b>{commissionPct}%</b> dos ganhos deles para sempre!
 <code>${LINE}</code>
 ${$people} <i>Total indicações:</i>  <b>{count}</b>
 ${$money} <i>Ganhos indicação:</i> <b>$ {earned}</b>
@@ -3796,7 +3804,7 @@ ${$money} <i>Ganhos indicação:</i> <b>$ {earned}</b>
 ${$link} <b>Seu link de indicação:</b>
 <code>{link}</code>
 <code>${LINE}</code>
-${$share} <i>Compartilhe o link — ganhe instantaneamente!</i>`,
+${$share} <i>Quanto mais amigos ativos você trouxer, mais você ganha — para sempre!</i>`,
 
     shareLink: "📨 Compartilhar Link",
 
